@@ -51,6 +51,8 @@ export function ProfileHistogram({
       onShowVolumeChange={onShowVolumeChange}
       formatValue={formatValue}
       highlight={highlight}
+      // Picking a baseline needs a drag, so a finger selects here rather than reading the bars.
+      selectOnTouch={selectingBaseline}
     />
   );
 }

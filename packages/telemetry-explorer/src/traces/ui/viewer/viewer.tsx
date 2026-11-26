@@ -1,4 +1,6 @@
+import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
+import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer";
 import { Input } from "@everr/ui/components/input";
 import {
   ResizableHandle,
@@ -14,6 +16,9 @@ import {
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { Tabs, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
+import { useIsNarrow } from "@everr/ui/hooks/use-mobile";
+import { useRetained } from "@everr/ui/hooks/use-retained";
 import { cn } from "@everr/ui/lib/utils";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
@@ -25,6 +30,7 @@ import {
   ChevronsDownUp,
   ChevronsUpDown,
   Search,
+  SlidersHorizontal,
   X,
   ZoomIn,
   ZoomOut,
@@ -36,7 +42,13 @@ import type { TracesRepositoryLike } from "../../data/repository";
 import type { Span } from "../../data/types";
 import { serviceColors } from "../shared/service-color";
 import { type FlamegraphHandle, TraceFlamegraph, type ViewRange } from "./flamegraph";
-import { matchesSpan, SPAN_CATEGORIES, type SpanCategory, type TraceModel } from "./model";
+import {
+  matchesSpan,
+  SPAN_CATEGORIES,
+  type SpanCategory,
+  type TraceModel,
+  type TraceNode,
+} from "./model";
 import { prepareTraceLayout, prepareTraceModel } from "./processor";
 import { spanColorGroup } from "./rendering/types";
 import { getAncestorSpanIds, getVisibleSpans } from "./rendering/waterfall-utils";
@@ -233,7 +245,13 @@ function TraceViewer({
     [model, collapsedNodes],
   );
   const [flamegraphOpen, setFlamegraphOpen] = useState(false);
+  // Phones show one view at a time; wider screens stack them.
+  const [mobileTab, setMobileTab] = useState<MobileTab>("waterfall");
   const [zoomRange, setZoomRange] = useState<ViewRange | null>(null);
+  // The whole trace is no zoom, so a drag or pinch that ends there (or has
+  // nothing to pan) leaves nothing to reset.
+  const changeZoom = (next: ViewRange) =>
+    setZoomRange(next.start <= 0 && next.end >= model.durationMs ? null : next);
   const range = zoomRange ?? { start: 0, end: model.durationMs };
   const flamegraphRef = useRef<FlamegraphHandle>(null);
   const waterfallRef = useRef<VirtuosoHandle>(null);
@@ -256,7 +274,6 @@ function TraceViewer({
     queryFn: profiles ? () => profiles.profiledSpans({ traceId, window: timeWindow }) : skipToken,
     select: (ids) => new Set(ids),
   });
-  const selectedProfiled = Boolean(selected && profiledSpans?.has(selected.spanId));
   const previewFields = useMemo(
     () => [...new Set(model.waterfall.flatMap((node) => Object.keys(node.attributes)))].sort(),
     [model],
@@ -312,15 +329,179 @@ function TraceViewer({
       0,
       Math.min(model.durationMs - width, (range.start + range.end - width) / 2),
     );
-    setZoomRange({ start, end: start + width });
+    changeZoom({ start, end: start + width });
   };
+
+  const isNarrow = useIsNarrow();
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const changedOptions =
+    Number(errorsOnly) +
+    Number(category !== "All") +
+    Number(colorBy !== COLOR_BY_FIELDS[0]) +
+    Number(Boolean(previewField));
+  // Keeps the drawer's content while it slides away after the span is cleared.
+  const shownSpan = useRetained(selected ?? null);
+
+  const filterControls = (
+    <>
+      <Button
+        variant={errorsOnly ? "secondary" : "outline"}
+        size="sm"
+        aria-pressed={errorsOnly}
+        onClick={() => setErrorsOnly((prev) => !prev)}
+      >
+        Highlight errors
+      </Button>
+      <fieldset className="flex flex-wrap gap-1" aria-label="Span categories">
+        {SPAN_CATEGORIES.map((item) => (
+          <Button
+            key={item}
+            variant={category === item ? "secondary" : "ghost"}
+            size="sm"
+            aria-pressed={category === item}
+            onClick={() => setCategory(item)}
+          >
+            {item}
+          </Button>
+        ))}
+      </fieldset>
+    </>
+  );
+  const attributeControls = (
+    <>
+      <span className="text-muted-foreground text-xs">Color by</span>
+      <AttributeMenu
+        label="Color spans by"
+        value={colorBy}
+        options={COLOR_BY_FIELDS}
+        onChange={setColorBy}
+      />
+      <span className="text-muted-foreground ml-2 text-xs">Preview</span>
+      <AttributeMenu
+        label="Preview span attribute"
+        value={previewField}
+        options={previewFields}
+        emptyLabel="None"
+        onChange={setPreviewField}
+      />
+    </>
+  );
+  const treeControls = (
+    <>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="pointer-coarse:size-8"
+        aria-label="Expand all spans"
+        onClick={() => setCollapsedNodes(new Set())}
+      >
+        <ChevronsUpDown />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        className="pointer-coarse:size-8"
+        aria-label="Collapse all spans"
+        onClick={() =>
+          setCollapsedNodes(
+            new Set(model.waterfall.filter((s) => s.hasChildren).map((s) => s.spanId)),
+          )
+        }
+      >
+        <ChevronsDownUp />
+      </Button>
+    </>
+  );
+  const renderDetails = (node: TraceNode) => (
+    <SpanDetails
+      key={node.spanId}
+      node={node}
+      durationMs={model.durationMs}
+      actions={
+        profiledSpans?.has(node.spanId) ? profiles?.renderLink(timeWindow, node.spanId) : undefined
+      }
+      profile={
+        profiledSpans?.has(node.spanId)
+          ? profiles?.renderSpanProfile({
+              traceId,
+              spanId: node.spanId,
+              window: timeWindow,
+              spanStartNs: node.source.timestampNs,
+              spanDurationNs: node.durationNano,
+            })
+          : undefined
+      }
+      onClose={() => onSpanChange(undefined)}
+      onFocus={() => {
+        const padding = Math.max((node.durationNano / 1e6) * 0.1, 0.001);
+        changeZoom({
+          start: Math.max(0, node.timestamp - padding),
+          end: Math.min(model.durationMs, node.timestamp + node.durationNano / 1e6 + padding),
+        });
+        flamegraphRef.current?.scrollToSpan(node.spanId);
+        // The zoom shows behind the drawer, so it gets out of the way.
+        if (isNarrow) onSpanChange(undefined);
+      }}
+    />
+  );
+
+  const flamegraph = (
+    <PreparedFlamegraph
+      queryKey={layoutKey}
+      ref={flamegraphRef}
+      model={model}
+      selectedSpanId={selectedId}
+      matchingIds={matchingSet}
+      filterActive={filterActive}
+      colorBy={colorBy}
+      colors={colors}
+      range={range}
+      onRangeChange={changeZoom}
+      onSelect={(id) => selectSpan(id, "flamegraph")}
+    />
+  );
+  const waterfall = (
+    <TraceWaterfall
+      rows={visibleRows}
+      selectedSpanId={selectedId}
+      openNodes={openNodes}
+      matchingIds={matchingSet}
+      filterActive={filterActive}
+      colorBy={colorBy}
+      colors={colors}
+      previewField={previewField}
+      range={range}
+      headerActions={isNarrow ? treeControls : undefined}
+      compact={isNarrow}
+      virtuosoRef={waterfallRef}
+      onSelect={(id) => selectSpan(id, "waterfall")}
+      onToggle={(id) =>
+        setCollapsedNodes((prev) => {
+          const next = new Set(prev);
+          if (next.has(id)) next.delete(id);
+          else next.add(id);
+          return next;
+        })
+      }
+    />
+  );
+  const legend = (
+    <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-4 py-2 text-[10px] text-muted-foreground max-lg:px-3">
+      {colorGroups.map((group) => (
+        <span key={group} className="flex items-center gap-1">
+          <span className="size-2 rounded-sm" style={{ backgroundColor: colors.get(group) }} />
+          {group}
+        </span>
+      ))}
+    </div>
+  );
 
   return (
     <section
       className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
       aria-label="Trace explorer detail"
     >
-      <div className="flex shrink-0 items-center gap-3 border-b px-4 py-3">
+      <div className={cn("flex shrink-0 items-center gap-3 border-b px-4 py-3", TOUCH_CONTROLS)}>
         <Button variant="ghost" size="icon-sm" aria-label="Back to traces" onClick={onBack}>
           <ArrowLeft />
         </Button>
@@ -336,7 +517,7 @@ function TraceViewer({
             {model.errorCount > 0 && (
               <span className="text-destructive">{model.errorCount} errors</span>
             )}
-            <span className="truncate font-mono text-[10px]" title={traceId}>
+            <span className="truncate font-mono text-[10px] max-sm:hidden" title={traceId}>
               {traceId}
             </span>
           </div>
@@ -356,13 +537,18 @@ function TraceViewer({
           The linked span is not present in the loaded trace.
         </div>
       )}
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
-        <div className="relative min-w-48 max-w-md flex-1">
-          <Search className="text-muted-foreground absolute left-2 top-2 size-4" />
+      <div
+        className={cn(
+          "flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2 max-lg:px-3",
+          TOUCH_CONTROLS,
+        )}
+      >
+        <div className="relative min-w-0 max-w-md flex-1 lg:min-w-48">
+          <Search className="text-muted-foreground pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2" />
           <Input
             aria-label="Search spans"
             placeholder="Search spans, services or attributes"
-            className="pl-8 pr-8"
+            className="pl-8 pr-8 pointer-coarse:h-10 pointer-coarse:text-base"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
@@ -370,7 +556,7 @@ function TraceViewer({
             <Button
               variant="ghost"
               size="icon-xs"
-              className="absolute right-1 top-1"
+              className="absolute right-1 top-1/2 -translate-y-1/2 pointer-coarse:min-w-8! pointer-coarse:h-8!"
               aria-label="Clear span search"
               onClick={() => setQuery("")}
             >
@@ -378,226 +564,211 @@ function TraceViewer({
             </Button>
           )}
         </div>
-        <div className="text-muted-foreground min-w-16 text-center text-xs" aria-live="polite">
-          {matches.length} matches
+        {/* On phones the count only says something once a filter narrows it. */}
+        <div
+          className={cn(
+            "text-muted-foreground min-w-16 text-center text-xs max-lg:min-w-0",
+            !filterActive && "max-lg:hidden",
+          )}
+          aria-live="polite"
+        >
+          {matches.length}
+          <span className="max-lg:sr-only"> matches</span>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Previous matching span"
-          disabled={!matches.length}
-          onClick={() => navigateMatch(-1)}
-        >
-          <ChevronLeft />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Next matching span"
-          disabled={!matches.length}
-          onClick={() => navigateMatch(1)}
-        >
-          <ChevronRight />
-        </Button>
-        <Button
-          variant={errorsOnly ? "secondary" : "outline"}
-          size="sm"
-          aria-pressed={errorsOnly}
-          onClick={() => setErrorsOnly((prev) => !prev)}
-        >
-          Highlight errors
-        </Button>
-        <fieldset className="flex gap-1" aria-label="Span categories">
-          {SPAN_CATEGORIES.map((item) => (
-            <Button
-              key={item}
-              variant={category === item ? "secondary" : "ghost"}
-              size="sm"
-              aria-pressed={category === item}
-              onClick={() => setCategory(item)}
-            >
-              {item}
-            </Button>
-          ))}
-        </fieldset>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
-        <span className="text-muted-foreground text-xs">Color by</span>
-        <AttributeMenu
-          label="Color spans by"
-          value={colorBy}
-          options={COLOR_BY_FIELDS}
-          onChange={setColorBy}
-        />
-        <span className="text-muted-foreground ml-2 text-xs">Preview</span>
-        <AttributeMenu
-          label="Preview span attribute"
-          value={previewField}
-          options={previewFields}
-          emptyLabel="None"
-          onChange={setPreviewField}
-        />
-        <div className="ml-auto flex items-center gap-1">
+        {isNarrow ? (
           <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Expand all spans"
-            onClick={() => setCollapsedNodes(new Set())}
+            variant="outline"
+            size="sm"
+            aria-label="Span filters and display options"
+            onClick={() => setOptionsOpen(true)}
           >
-            <ChevronsUpDown />
+            <SlidersHorizontal />
+            {changedOptions > 0 && <Badge variant="secondary">{changedOptions}</Badge>}
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label="Collapse all spans"
-            onClick={() =>
-              setCollapsedNodes(
-                new Set(model.waterfall.filter((s) => s.hasChildren).map((s) => s.spanId)),
-              )
-            }
-          >
-            <ChevronsDownUp />
-          </Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Zoom in" onClick={() => zoom(0.5)}>
-            <ZoomIn />
-          </Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Zoom out" onClick={() => zoom(2)}>
-            <ZoomOut />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setZoomRange(null)}>
-            Reset zoom
-          </Button>
-        </div>
-      </div>
-      <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
-        <ResizablePanel defaultSize="72%" minSize="35%">
-          <div className="flex h-full min-h-0 flex-col">
-            <button
-              type="button"
-              className="flex h-8 shrink-0 items-center gap-2 border-b px-4 text-xs font-medium hover:bg-muted/40"
-              aria-expanded={flamegraphOpen}
-              onClick={() => setFlamegraphOpen((prev) => !prev)}
-            >
-              {/* A right chevron turning down, as the waterfall rows do. A down
-                  chevron would be flipped by the global aria-expanded rule. */}
-              <ChevronRight
-                className={cn(
-                  "size-3 transition-transform duration-200 ease-(--ease-out) motion-reduce:transition-none",
-                  flamegraphOpen && "rotate-90",
-                )}
-              />
-              Flamegraph
-              <span className="text-muted-foreground ml-auto text-[10px] font-normal">
-                Pinch to zoom · drag to pan
-              </span>
-            </button>
-            <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
-              {flamegraphOpen && (
-                <>
-                  <ResizablePanel defaultSize="35%" minSize="15%">
-                    <PreparedFlamegraph
-                      queryKey={layoutKey}
-                      ref={flamegraphRef}
-                      model={model}
-                      selectedSpanId={selectedId}
-                      matchingIds={matchingSet}
-                      filterActive={filterActive}
-                      colorBy={colorBy}
-                      colors={colors}
-                      range={range}
-                      onRangeChange={setZoomRange}
-                      onSelect={(id) => selectSpan(id, "flamegraph")}
-                    />
-                  </ResizablePanel>
-                  <ResizableHandle withHandle aria-label="Resize flamegraph and waterfall" />
-                </>
-              )}
-              <ResizablePanel minSize="20%">
-                <div className="flex h-full min-h-0 flex-col">
-                  <div className="h-8 shrink-0 border-b px-4 pt-2 text-xs font-medium">
-                    Waterfall
-                  </div>
-                  <TraceWaterfall
-                    rows={visibleRows}
-                    selectedSpanId={selectedId}
-                    openNodes={openNodes}
-                    matchingIds={matchingSet}
-                    filterActive={filterActive}
-                    colorBy={colorBy}
-                    colors={colors}
-                    previewField={previewField}
-                    range={range}
-                    virtuosoRef={waterfallRef}
-                    onSelect={(id) => selectSpan(id, "waterfall")}
-                    onToggle={(id) =>
-                      setCollapsedNodes((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(id)) next.delete(id);
-                        else next.add(id);
-                        return next;
-                      })
-                    }
-                  />
-                </div>
-              </ResizablePanel>
-            </ResizablePanelGroup>
-            <div className="flex shrink-0 flex-wrap gap-x-3 gap-y-1 border-t px-4 py-2 text-[10px] text-muted-foreground">
-              {colorGroups.map((group) => (
-                <span key={group} className="flex items-center gap-1">
-                  <span
-                    className="size-2 rounded-sm"
-                    style={{
-                      backgroundColor: colors.get(group),
-                    }}
-                  />
-                  {group}
-                </span>
-              ))}
-            </div>
-          </div>
-        </ResizablePanel>
-        {selected && (
+        ) : (
+          // On phones each match would open the span drawer over the list, so
+          // stepping through matches is left to wider screens.
           <>
-            <ResizableHandle withHandle aria-label="Resize span details" />
-            <ResizablePanel defaultSize="28%" minSize="20%">
-              <SpanDetails
-                key={selected.spanId}
-                node={selected}
-                durationMs={model.durationMs}
-                actions={
-                  selectedProfiled ? profiles?.renderLink(timeWindow, selected.spanId) : undefined
-                }
-                profile={
-                  selectedProfiled
-                    ? profiles?.renderSpanProfile({
-                        traceId,
-                        spanId: selected.spanId,
-                        window: timeWindow,
-                        spanStartNs: selected.source.timestampNs,
-                        spanDurationNs: selected.durationNano,
-                      })
-                    : undefined
-                }
-                onClose={() => onSpanChange(undefined)}
-                onFocus={() => {
-                  const padding = Math.max((selected.durationNano / 1e6) * 0.1, 0.001);
-                  setZoomRange({
-                    start: Math.max(0, selected.timestamp - padding),
-                    end: Math.min(
-                      model.durationMs,
-                      selected.timestamp + selected.durationNano / 1e6 + padding,
-                    ),
-                  });
-                  flamegraphRef.current?.scrollToSpan(selected.spanId);
-                }}
-              />
-            </ResizablePanel>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Previous matching span"
+              disabled={!matches.length}
+              onClick={() => navigateMatch(-1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label="Next matching span"
+              disabled={!matches.length}
+              onClick={() => navigateMatch(1)}
+            >
+              <ChevronRight />
+            </Button>
+            {filterControls}
           </>
         )}
-      </ResizablePanelGroup>
+      </div>
+      {!isNarrow && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
+          {attributeControls}
+          <div className="ml-auto flex items-center gap-1">
+            {treeControls}
+            <Button variant="ghost" size="icon-xs" aria-label="Zoom in" onClick={() => zoom(0.5)}>
+              <ZoomIn />
+            </Button>
+            <Button variant="ghost" size="icon-xs" aria-label="Zoom out" onClick={() => zoom(2)}>
+              <ZoomOut />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setZoomRange(null)}>
+              Reset zoom
+            </Button>
+          </div>
+        </div>
+      )}
+      {isNarrow ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <Tabs
+            value={mobileTab}
+            onValueChange={(tab) => {
+              if (isMobileTab(tab)) setMobileTab(tab);
+            }}
+            className="shrink-0"
+          >
+            <TabsList
+              variant="line"
+              className="w-full border-b px-3 pointer-coarse:h-12 pointer-coarse:**:data-[slot=tabs-trigger]:text-sm"
+            >
+              <TabsTrigger value="waterfall">Waterfall</TabsTrigger>
+              <TabsTrigger value="flamegraph">Flamegraph</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {/* The waterfall stays mounted to keep its scroll position; the
+              flamegraph is prepared only once its tab is open. */}
+          <div className="relative flex min-h-0 flex-1 flex-col">
+            <div
+              className={cn("flex min-h-0 flex-1 flex-col", mobileTab !== "waterfall" && "hidden")}
+            >
+              {waterfall}
+            </div>
+            {mobileTab === "flamegraph" && <div className="min-h-0 flex-1">{flamegraph}</div>}
+            {/* Over the view's corner, as on the profiles page, so it never
+                pushes the view down; and only when there is a zoom to undo. */}
+            {zoomRange && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="bg-background absolute bottom-3 left-3 z-20 shadow-md pointer-coarse:h-10 pointer-coarse:px-3 pointer-coarse:text-sm"
+                onClick={() => setZoomRange(null)}
+              >
+                <ZoomOut data-icon="inline-start" />
+                Reset zoom
+              </Button>
+            )}
+          </div>
+          {legend}
+        </div>
+      ) : (
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+          <ResizablePanel defaultSize="72%" minSize="35%">
+            <div className="flex h-full min-h-0 flex-col">
+              <button
+                type="button"
+                className="flex h-8 shrink-0 items-center gap-2 border-b px-4 text-xs font-medium hover:bg-muted/40"
+                aria-expanded={flamegraphOpen}
+                onClick={() => setFlamegraphOpen((prev) => !prev)}
+              >
+                {/* A right chevron turning down, as the waterfall rows do. A down
+                  chevron would be flipped by the global aria-expanded rule. */}
+                <ChevronRight
+                  className={cn(
+                    "size-3 transition-transform duration-200 ease-(--ease-out) motion-reduce:transition-none",
+                    flamegraphOpen && "rotate-90",
+                  )}
+                />
+                Flamegraph
+                <span className="text-muted-foreground ml-auto text-[10px] font-normal">
+                  Pinch to zoom · drag to pan
+                </span>
+              </button>
+              <ResizablePanelGroup orientation="vertical" className="min-h-0 flex-1">
+                {flamegraphOpen && (
+                  <>
+                    <ResizablePanel defaultSize="35%" minSize="15%">
+                      {flamegraph}
+                    </ResizablePanel>
+                    <ResizableHandle withHandle aria-label="Resize flamegraph and waterfall" />
+                  </>
+                )}
+                <ResizablePanel minSize="20%">
+                  <div className="flex h-full min-h-0 flex-col">
+                    <div className="h-8 shrink-0 border-b px-4 pt-2 text-xs font-medium">
+                      Waterfall
+                    </div>
+                    {waterfall}
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+              {legend}
+            </div>
+          </ResizablePanel>
+          {selected && (
+            <>
+              <ResizableHandle withHandle aria-label="Resize span details" />
+              <ResizablePanel defaultSize="28%" minSize="20%">
+                {renderDetails(selected)}
+              </ResizablePanel>
+            </>
+          )}
+        </ResizablePanelGroup>
+      )}
+      {isNarrow && (
+        <>
+          <Drawer
+            showSwipeHandle
+            open={Boolean(selected)}
+            onOpenChange={(open) => {
+              if (!open) onSpanChange(undefined);
+            }}
+          >
+            <DrawerContent
+              className={cn(
+                "pb-[env(safe-area-inset-bottom)] [--drawer-content-height:calc(100dvh-6rem)]",
+                TOUCH_CONTROLS,
+              )}
+            >
+              <DrawerTitle className="sr-only">Span details</DrawerTitle>
+              {shownSpan && renderDetails(shownSpan)}
+            </DrawerContent>
+          </Drawer>
+          <Drawer open={optionsOpen} onOpenChange={setOptionsOpen}>
+            <DrawerContent className={cn("pb-[env(safe-area-inset-bottom)]", TOUCH_CONTROLS)}>
+              <DrawerTitle className="px-4 pt-4">Spans</DrawerTitle>
+              <div className="flex flex-wrap items-center gap-2 p-4">{filterControls}</div>
+              <div className="flex flex-wrap items-center gap-2 border-t p-4">
+                {attributeControls}
+              </div>
+            </DrawerContent>
+          </Drawer>
+        </>
+      )}
     </section>
   );
 }
+
+/** Finger-sized buttons and menus on touch screens, as the profiles page has. */
+const TOUCH_CONTROLS = cn(
+  "pointer-coarse:**:data-[slot=button]:h-10 pointer-coarse:**:data-[slot=button]:min-w-10 pointer-coarse:**:data-[slot=button]:px-3 pointer-coarse:**:data-[slot=button]:text-sm",
+  "pointer-coarse:**:data-[slot=dropdown-menu-trigger]:h-10 pointer-coarse:**:data-[slot=dropdown-menu-trigger]:px-3 pointer-coarse:**:data-[slot=dropdown-menu-trigger]:text-sm",
+  "pointer-coarse:**:data-[slot=tabs-list]:h-12 pointer-coarse:**:data-[slot=tabs-trigger]:text-sm",
+);
+
+const MOBILE_TABS = ["waterfall", "flamegraph"] as const;
+type MobileTab = (typeof MOBILE_TABS)[number];
+const isMobileTab = (value: unknown): value is MobileTab =>
+  MOBILE_TABS.some((tab) => tab === value);
 
 const COLOR_BY_FIELDS = ["service.name", "service.namespace", "host.name"];
 

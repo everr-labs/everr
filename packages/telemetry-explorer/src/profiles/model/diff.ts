@@ -125,7 +125,7 @@ const NEUTRAL_DELTA = 0.001;
 
 /**
  * Red for frames that take a larger share than in the baseline, green for a
- * smaller one. Light enough for the flame graph's dark labels. `scale` is the
+ * smaller one. Light enough for the flamegraph's dark labels. `scale` is the
  * largest change on screen, so the strongest color always marks the biggest
  * change.
  */

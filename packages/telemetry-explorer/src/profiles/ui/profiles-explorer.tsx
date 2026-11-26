@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer";
 import {
   Empty,
   EmptyContent,
@@ -7,9 +8,11 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
+import { Tabs, TabsList, TabsTrigger } from "@everr/ui/components/tabs";
+import { cn } from "@everr/ui/lib/utils";
 import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
-import { Layers, ZoomOut } from "lucide-react";
+import { Info, Layers, ZoomOut } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import { withEnvironment } from "../../filters/environment";
 import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
@@ -82,6 +85,12 @@ export type ProfilesExplorerSearch = Omit<ProfilesSearchParams, "from" | "to" | 
   /** The shared Explore Service filter; empty means every service. */
   service: string[];
 };
+
+// Below lg the page shows one of these at a time, each the only thing that scrolls.
+const MOBILE_TABS = ["flame", "functions", "timeline"] as const;
+type MobileTab = (typeof MOBILE_TABS)[number];
+const isMobileTab = (value: unknown): value is MobileTab =>
+  MOBILE_TABS.some((tab) => tab === value);
 
 export type ProfilesExplorerPatch = Partial<Omit<ProfilesExplorerSearch, "service">>;
 
@@ -228,11 +237,48 @@ export function ProfilesExplorer({
   // Zoom is a path of frame keys, so it survives refetches of the same stacks
   // and falls back to the nearest frame that still exists.
   const [zoomPath, setZoomPath] = useState<string[]>([]);
+  const [mobileTab, setMobileTab] = useState<MobileTab>("flame");
 
   const changeFilters = (patch: ProfileFilterPatch) => {
     setZoomPath([]);
     onSearchChange(patch);
   };
+
+  const compareMenu = (
+    <CompareMenu
+      value={search.compare}
+      onChange={(compare) => {
+        // A custom baseline is dragged on the chart, which is in Timeline below lg.
+        if (compare === "custom") setMobileTab("timeline");
+        onSearchChange({
+          compare,
+          baseFrom: undefined,
+          baseTo: undefined,
+          version: undefined,
+          baseVersion: undefined,
+        });
+      }}
+    />
+  );
+  const stacks = stacksQuery.data?.stacks;
+  const stackTotal = useMemo(
+    () => stacks?.reduce((sum, stack) => sum + stack.value, 0) ?? 0,
+    [stacks],
+  );
+  // Below lg the filter bar holds the profile's summary and Compare, which take
+  // a row of their own in the toolbar on wide screens.
+  const narrowToolbar =
+    sampleType && stacks && stacks.length > 0 ? (
+      <div className="flex min-w-0 flex-1 items-center gap-2 text-xs">
+        <span className="font-medium">{sampleType.sampleType}</span>
+        <span className="text-muted-foreground min-w-0 truncate tabular-nums">
+          {formatProfileValue(stackTotal, displayUnit(sampleType))} in{" "}
+          {stacks.length.toLocaleString("en-US")} stacks
+        </span>
+        {/* A comparison changes the flamegraph and the functions, not the charts. */}
+        {mobileTab === "timeline" ? null : <span className="ml-auto shrink-0">{compareMenu}</span>}
+      </div>
+    ) : undefined;
 
   let content: ReactNode;
   if (sampleTypesQuery.isPending) {
@@ -279,22 +325,14 @@ export function ProfilesExplorer({
     content = (
       <ProfileView
         key={sampleTypeKey(sampleType)}
+        mobileTab={mobileTab}
+        onShowFlame={() => setMobileTab("flame")}
         data={stacksQuery.data}
         sampleType={sampleType}
+        compareMenu={compareMenu}
+        comparing={search.compare !== undefined}
         compareBar={
           <>
-            <CompareMenu
-              value={search.compare}
-              onChange={(compare) =>
-                onSearchChange({
-                  compare,
-                  baseFrom: undefined,
-                  baseTo: undefined,
-                  version: undefined,
-                  baseVersion: undefined,
-                })
-              }
-            />
             {comparingVersions && versions.length > 0 ? (
               <>
                 <VersionMenu
@@ -341,7 +379,15 @@ export function ProfilesExplorer({
 
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
-      <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
+      {/* Touch targets: every button and tab on the page grows to 40px under a finger. */}
+      <section
+        className={cn(
+          "bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden",
+          "pointer-coarse:**:data-[slot=button]:h-10 pointer-coarse:**:data-[slot=button]:min-w-10 pointer-coarse:**:data-[slot=button]:px-3 pointer-coarse:**:data-[slot=button]:text-sm",
+          "pointer-coarse:**:data-[slot=dropdown-menu-trigger]:h-10 pointer-coarse:**:data-[slot=dropdown-menu-trigger]:px-3 pointer-coarse:**:data-[slot=dropdown-menu-trigger]:text-sm",
+          "pointer-coarse:**:data-[slot=tabs-list]:h-12 pointer-coarse:**:data-[slot=tabs-trigger]:text-sm",
+        )}
+      >
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <ProfileFilters
             repo={repo}
@@ -351,45 +397,81 @@ export function ProfilesExplorer({
             sampleType={sampleType}
             persistentFilters={persistentFilters}
             persistentFilterCount={countPersistentFilters(search.service, environment)}
+            narrowToolbar={narrowToolbar}
             onChange={changeFilters}
           />
-          {/* Narrow screens scroll the whole page, so the flame graph and the table
-              each get a usable height instead of splitting the space left over. */}
-          <main className="flex min-h-0 min-w-0 flex-col overflow-y-auto lg:overflow-visible">
+          <main className="flex min-h-0 min-w-0 flex-col">
             {sampleType ? (
-              <ProfileHistogram
-                buckets={histogramQuery.data ?? []}
-                sampleType={sampleType}
-                isPending={histogramQuery.isPending}
-                showVolume={search.showVolume}
-                selectingBaseline={search.compare === "custom"}
-                baseline={
-                  search.compare === "custom" && search.baseFrom && search.baseTo
-                    ? { from: new Date(search.baseFrom), to: new Date(search.baseTo) }
-                    : undefined
-                }
-                onRangeSelect={(from, to) => {
-                  if (search.compare === "custom") {
-                    onSearchChange({ baseFrom: from.toISOString(), baseTo: to.toISOString() });
-                    return;
+              <Tabs
+                value={mobileTab}
+                onValueChange={(tab) => {
+                  if (isMobileTab(tab)) setMobileTab(tab);
+                }}
+                className="shrink-0 lg:hidden"
+              >
+                <TabsList variant="line" className="w-full border-b px-3">
+                  <TabsTrigger value="flame">
+                    {/* Named for what it shows, so its own back button reads as the way out. */}
+                    {search.fn ? "Callers and callees" : "Flamegraph"}
+                  </TabsTrigger>
+                  <TabsTrigger value="functions">Functions</TabsTrigger>
+                  <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                </TabsList>
+              </Tabs>
+            ) : null}
+            <div
+              className={cn(
+                "shrink-0",
+                mobileTab === "timeline"
+                  ? "max-lg:min-h-0 max-lg:flex-1 max-lg:overflow-y-auto"
+                  : "max-lg:hidden",
+              )}
+            >
+              {sampleType ? (
+                <ProfileHistogram
+                  buckets={histogramQuery.data ?? []}
+                  sampleType={sampleType}
+                  isPending={histogramQuery.isPending}
+                  showVolume={search.showVolume}
+                  selectingBaseline={search.compare === "custom"}
+                  baseline={
+                    search.compare === "custom" && search.baseFrom && search.baseTo
+                      ? { from: new Date(search.baseFrom), to: new Date(search.baseTo) }
+                      : undefined
                   }
-                  setZoomPath([]);
-                  onTimeRangeSelect?.(from, to);
-                }}
-                onShowVolumeChange={(showVolume) => onSearchChange({ showVolume })}
-              />
-            ) : null}
-            {sampleType && runtimeRepo && search.showVolume ? (
-              <RuntimeStrip
-                repo={runtimeRepo}
-                filters={filters}
-                onRangeSelect={(from, to) => {
-                  setZoomPath([]);
-                  onTimeRangeSelect?.(from, to);
-                }}
-              />
-            ) : null}
-            {content}
+                  onRangeSelect={(from, to) => {
+                    if (search.compare === "custom") {
+                      onSearchChange({ baseFrom: from.toISOString(), baseTo: to.toISOString() });
+                      setMobileTab("flame");
+                      return;
+                    }
+                    setZoomPath([]);
+                    setMobileTab("flame");
+                    onTimeRangeSelect?.(from, to);
+                  }}
+                  onShowVolumeChange={(showVolume) => onSearchChange({ showVolume })}
+                />
+              ) : null}
+              {sampleType && runtimeRepo && search.showVolume ? (
+                <RuntimeStrip
+                  repo={runtimeRepo}
+                  filters={filters}
+                  onRangeSelect={(from, to) => {
+                    setZoomPath([]);
+                    setMobileTab("flame");
+                    onTimeRangeSelect?.(from, to);
+                  }}
+                />
+              ) : null}
+            </div>
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col",
+                mobileTab === "timeline" && "max-lg:hidden",
+              )}
+            >
+              {content}
+            </div>
           </main>
         </div>
       </section>
@@ -398,6 +480,10 @@ export function ProfilesExplorer({
 }
 
 function ProfileView({
+  compareMenu,
+  comparing,
+  mobileTab,
+  onShowFlame,
   data,
   sampleType,
   compareBar,
@@ -409,6 +495,12 @@ function ProfileView({
   exampleTraces,
   renderTraceLink,
 }: {
+  /** In the toolbar on wide screens; the filter bar holds it below lg. */
+  compareMenu: ReactNode;
+  comparing: boolean;
+  mobileTab: MobileTab;
+  /** Brings the flamegraph up below lg, after an action whose result shows there. */
+  onShowFlame: () => void;
   data: ProfileStacks;
   sampleType: SampleTypeOption;
   /** The comparison controls and status, for the toolbar. */
@@ -452,24 +544,54 @@ function ProfileView({
   const unit = displayUnit(sampleType);
   const total = tree.root.total;
   const truncated = data.stackCount > data.stacks.length;
+  // Below lg the zoom controls float over the flamegraph, so the row shows
+  // only for what has nowhere else to go.
+  const toolbarOnNarrow = comparing || truncated || Boolean(data.snapshots);
+  const pinnedChip = highlight.pinned ? (
+    <PinnedFunction fn={highlight.pinned} onClear={highlight.clearPin} />
+  ) : null;
+  const resetZoom = profile.zoomed ? (
+    <Button variant="outline" size="sm" onClick={() => profile.zoomTo([])}>
+      <ZoomOut data-icon="inline-start" />
+      Reset zoom
+    </Button>
+  ) : null;
   const fnKey = fn ? frameKey(fn) : undefined;
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const functionPanelProps = fn && {
+    stat: fnKey ? profile.statsByKey.get(fnKey) : undefined,
+    fn,
+    unit,
+    total,
+    sourceUrl: fnKey ? profile.sourceUrlOf(fnKey) : undefined,
+    exampleTraces,
+    renderTraceLink,
+  };
 
   // In callers and callees a row recenters the view; otherwise it highlights
-  // the function's frames in the flame graph.
+  // the function's frames in the flamegraph.
+  // Either way the result shows in the flamegraph's place.
+  const showCallers = (ref: FunctionRef) => {
+    onFunctionSelect(ref);
+    onShowFlame();
+  };
   const tableActions = fn
     ? {
         activeKey: fnKey,
         activateHint: "Show callers and callees",
-        onActivate: onFunctionSelect,
+        onActivate: showCallers,
         onHover: () => {},
-        onShowCallers: onFunctionSelect,
+        onShowCallers: showCallers,
         sourceUrlOf: profile.sourceUrlOf,
       }
     : {
         ...highlight.table,
-        activateHint: "Highlight in the flame graph",
-        onActivate: highlight.togglePin,
-        onShowCallers: onFunctionSelect,
+        activateHint: "Highlight in the flamegraph",
+        onActivate: (row: Parameters<typeof highlight.togglePin>[0]) => {
+          highlight.togglePin(row);
+          onShowFlame();
+        },
+        onShowCallers: showCallers,
         sourceUrlOf: profile.sourceUrlOf,
       };
 
@@ -483,11 +605,19 @@ function ProfileView({
   );
 
   return (
-    <div className="flex flex-1 flex-col lg:min-h-0">
-      <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-xs">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className={cn(
+          // One line on wide screens, so pinning a function cannot push the graph down.
+          "flex min-h-10 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-3 py-1.5 text-xs lg:flex-nowrap",
+          // Below lg the summary and Compare sit in the filter bar, so the row
+          // shows only when it has something else to say.
+          !toolbarOnNarrow && "max-lg:hidden",
+        )}
+      >
         {/* Values carry their own unit (12 ms, 1,234 objects), so the stored one is left out. */}
-        <span className="font-medium">{sampleType.sampleType}</span>
-        <span className="text-muted-foreground tabular-nums">
+        <span className="font-medium max-lg:hidden">{sampleType.sampleType}</span>
+        <span className="text-muted-foreground tabular-nums max-lg:hidden">
           {formatProfileValue(total, unit)} in {data.stacks.length.toLocaleString("en-US")} stacks
         </span>
         {truncated ? (
@@ -503,12 +633,13 @@ function ProfileView({
             {data.snapshots === 1 ? "snapshot" : "snapshots"}
           </span>
         ) : null}
-        {compareBar}
+        <span className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+          <span className="max-lg:hidden">{compareMenu}</span>
+          {compareBar}
+        </span>
         {fn ? null : (
-          <span className="ml-auto flex min-w-0 items-center gap-2">
-            {highlight.pinned ? (
-              <PinnedFunction fn={highlight.pinned} onClear={highlight.clearPin} />
-            ) : null}
+          <span className="flex min-w-0 items-center justify-end gap-2 max-lg:hidden">
+            {pinnedChip}
             {focus.parent ? (
               <Button
                 variant="outline"
@@ -519,26 +650,23 @@ function ProfileView({
                 Callers and callees
               </Button>
             ) : null}
-            {profile.zoomed ? (
-              <Button variant="outline" size="sm" onClick={() => profile.zoomTo([])}>
-                <ZoomOut data-icon="inline-start" />
-                Reset zoom
-              </Button>
-            ) : (
-              <span className="text-muted-foreground">
-                <span className="pointer-coarse:hidden">
-                  Click a frame to zoom in, right-click for more
+            {resetZoom ??
+              (pinnedChip ? null : (
+                // A finger finds the frames without a hint: a tap opens their details.
+                <span className="text-muted-foreground whitespace-nowrap pointer-coarse:hidden">
+                  Click a frame to highlight it, right-click for more
                 </span>
-                <span className="hidden pointer-coarse:inline">
-                  Tap a frame to zoom in, long-press for more
-                </span>
-              </span>
-            )}
+              ))}
           </span>
         )}
       </div>
-      <div className="flex h-[70svh] shrink-0 flex-col lg:h-auto lg:min-h-0 lg:flex-[3] lg:flex-row">
-        {fn && sandwich ? (
+      <div
+        className={cn(
+          "flex min-h-0 flex-[3] flex-col lg:flex-row",
+          mobileTab !== "flame" && "max-lg:hidden",
+        )}
+      >
+        {fn && sandwich && functionPanelProps ? (
           <>
             <SandwichView
               key={fnKey}
@@ -550,19 +678,41 @@ function ProfileView({
               onSelect={onFunctionSelect}
               onBack={() => onFunctionSelect(undefined)}
               renderHover={renderFrameHover}
+              actions={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="lg:hidden"
+                  onClick={() => setDetailsOpen(true)}
+                >
+                  <Info data-icon="inline-start" />
+                  Details
+                </Button>
+              }
             />
-            <FunctionPanel
-              stat={fnKey ? profile.statsByKey.get(fnKey) : undefined}
-              fn={fn}
-              unit={unit}
-              total={total}
-              sourceUrl={fnKey ? profile.sourceUrlOf(fnKey) : undefined}
-              exampleTraces={exampleTraces}
-              renderTraceLink={renderTraceLink}
-            />
+            {/* Beside the graphs on wide screens; in a drawer on narrow ones, so
+                the callers and callees get the whole height. */}
+            <FunctionPanel {...functionPanelProps} className="max-lg:hidden" />
+            <Drawer open={detailsOpen} onOpenChange={setDetailsOpen}>
+              <DrawerContent>
+                <DrawerTitle className="sr-only">{fn.name}</DrawerTitle>
+                <FunctionPanel
+                  {...functionPanelProps}
+                  className="border-t-0 pb-[env(safe-area-inset-bottom)] text-sm"
+                />
+              </DrawerContent>
+            </Drawer>
           </>
         ) : (
-          <div className="min-h-0 min-w-0 flex-1">
+          <div className="relative min-h-0 min-w-0 flex-1">
+            {pinnedChip || resetZoom ? (
+              // Over the graph's corner on narrow screens, like a map's zoom
+              // buttons, instead of a row that pushes the graph down.
+              <div className="pointer-events-none absolute bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-3 z-20 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 lg:hidden [&>*]:pointer-events-auto [&>*]:shadow-md">
+                {pinnedChip}
+                {resetZoom ? <span className="bg-background rounded-md">{resetZoom}</span> : null}
+              </div>
+            ) : null}
             <ProfileFlamegraphView
               flamegraph={profile.flamegraph}
               unit={unit}
@@ -578,12 +728,23 @@ function ProfileView({
                   onFunctionSelect({ name: node.name, file: node.file }),
                 )
               }
-              ariaLabel="Profile flame graph. Click a frame to zoom into it, pinch to zoom, drag to pan, double-click to reset."
+              onClick={profile.togglePin}
+              renderTapActions={(node, close) =>
+                profile.renderFrameActions(node, close, () =>
+                  onFunctionSelect({ name: node.name, file: node.file }),
+                )
+              }
+              ariaLabel="Profile flamegraph. Click a frame to highlight its function, right-click or tap it for its actions, pinch to zoom, drag to pan."
             />
           </div>
         )}
       </div>
-      <div className="border-t lg:min-h-0 lg:flex-[2] lg:overflow-y-auto">
+      <div
+        className={cn(
+          "flex min-h-0 flex-[2] flex-col lg:border-t",
+          mobileTab !== "functions" && "max-lg:hidden",
+        )}
+      >
         {tablePath ? <ScopedTableCaption frame={focus} /> : null}
         {functionDiffs ? (
           <DiffFunctionsTable
@@ -638,7 +799,7 @@ function resolveComparison({
   });
   if (compare !== "version") {
     if (compare === "custom" && (!baseFrom || !baseTo)) {
-      return unavailable("Drag across the chart above to pick the baseline window");
+      return unavailable("Drag across the chart over time to pick the baseline window");
     }
     const range = isPresetBaseline(compare)
       ? baselineRange(filters.timeRange, compare)

@@ -87,6 +87,7 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   onShowVolumeChange,
   formatValue = formatCount,
   highlight,
+  selectOnTouch,
 }: {
   title: string;
   buckets: B[];
@@ -99,6 +100,8 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
   formatValue?: (value: number) => string;
   /** Bucket indexes to shade, inclusive. */
   highlight?: { from: number; to: number } | null;
+  /** A finger drag selects a range too, instead of reading the bars. */
+  selectOnTouch?: boolean;
 }) {
   // Stable unless the formatter changes, so the chart does not rebuild per render.
   const axes = useMemo(() => ({ left: { format: formatValue, hidden: true } }), [formatValue]);
@@ -148,6 +151,7 @@ export function VolumeHistogram<K extends string, B extends HistogramBucket & Re
               compact
               sparseLabels
               highlight={highlight}
+              selectOnTouch={selectOnTouch}
               className="h-[104px] w-full"
               onSelect={(from, to) =>
                 onRangeSelect(new Date(buckets[from].timestamp), new Date(buckets[to].endTimestamp))

@@ -1,3 +1,4 @@
+import { Drawer, DrawerContent, DrawerTitle } from "@everr/ui/components/drawer";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { type ReactNode, useMemo, useState } from "react";
 import { TraceFlamegraph, type ViewRange } from "../../traces/ui/viewer/flamegraph";
@@ -21,11 +22,11 @@ import {
 import { formatPercent, formatProfileValue } from "../model/format";
 import { runtimeFrameNote } from "../model/runtime-frames";
 import { sourceLink } from "../model/source-link";
-import { FrameMenuItems, useFunctionHighlight } from "./function-highlight";
+import { FrameActionList, FrameMenuItems, useFunctionHighlight } from "./function-highlight";
 
 const NO_MATCHES: ReadonlySet<string> = new Set();
 
-/** A profile drawn with the trace flame graph's canvas, which takes frames as spans. */
+/** A profile drawn with the trace flamegraph's canvas, which takes frames as spans. */
 export function ProfileFlamegraphView({
   flamegraph,
   unit,
@@ -37,6 +38,8 @@ export function ProfileFlamegraphView({
   onSelect,
   renderHover,
   renderContextMenu,
+  renderTapActions,
+  onClick,
   ariaLabel,
 }: {
   flamegraph: ProfileFlamegraph;
@@ -54,45 +57,84 @@ export function ProfileFlamegraphView({
   onSelect: (node: FlameNode) => void;
   renderHover: (node: FlameNode, diff: FrameDiff | undefined) => ReactNode;
   renderContextMenu?: (node: FlameNode) => ReactNode;
+  /**
+   * The actions of a tapped frame. With them, a tap opens a drawer with the
+   * frame's details and actions, since touch has no hover and long-presses go
+   * unnoticed.
+   */
+  renderTapActions?: (node: FlameNode, close: () => void) => ReactNode;
+  /** A mouse click on a frame. With it, neither a click nor a tap selects the frame. */
+  onClick?: (node: FlameNode) => void;
   ariaLabel: string;
 }) {
   // Stable, so the canvas does not rebuild on every render of the parent.
   const formatValue = useMemo(() => (value: number) => formatProfileValue(value, unit), [unit]);
   const colorOf = useMemo(() => (diffs ? diffColorOf(diffs) : undefined), [diffs]);
   const nodeOf = (id: string) => flamegraph.nodes.get(id);
+  // The frame stays while the drawer slides away, so its content does not blank out.
+  const [tap, setTap] = useState<{ id: string; open: boolean }>();
+  const tapped = tap ? nodeOf(tap.id) : undefined;
+  const closeTap = () => setTap((current) => current && { ...current, open: false });
 
   return (
-    <TraceFlamegraph
-      model={flamegraph}
-      layout={flamegraph.layout}
-      selectedSpanId={selected?.parent ? selected.id : undefined}
-      matchingIds={highlight?.matchingIds ?? NO_MATCHES}
-      filterActive={highlight?.filterActive ?? false}
-      onHoverChange={highlight?.onHoverChange}
-      colorBy={FRAME_COLOR_KEY}
-      colors={FRAME_COLORS}
-      colorOf={colorOf}
-      timeAxis={false}
-      formatValue={formatValue}
-      range={range}
-      onRangeChange={onRangeChange}
-      onSelect={(id) => {
-        const node = nodeOf(id);
-        if (node) onSelect(node);
-      }}
-      renderContextMenu={
-        renderContextMenu &&
-        ((id) => {
+    <>
+      <TraceFlamegraph
+        model={flamegraph}
+        layout={flamegraph.layout}
+        selectedSpanId={selected?.parent ? selected.id : undefined}
+        matchingIds={highlight?.matchingIds ?? NO_MATCHES}
+        filterActive={highlight?.filterActive ?? false}
+        onHoverChange={highlight?.onHoverChange}
+        colorBy={FRAME_COLOR_KEY}
+        colors={FRAME_COLORS}
+        colorOf={colorOf}
+        timeAxis={false}
+        formatValue={formatValue}
+        range={range}
+        onRangeChange={onRangeChange}
+        onSelect={(id) => {
           const node = nodeOf(id);
-          return node ? renderContextMenu(node) : null;
-        })
-      }
-      renderHover={(span) => {
-        const node = nodeOf(span.spanId);
-        return node ? renderHover(node, diffs?.get(span.spanId)) : null;
-      }}
-      ariaLabel={ariaLabel}
-    />
+          if (node) onSelect(node);
+        }}
+        renderContextMenu={
+          renderContextMenu &&
+          ((id) => {
+            const node = nodeOf(id);
+            return node ? renderContextMenu(node) : null;
+          })
+        }
+        renderHover={(span) => {
+          const node = nodeOf(span.spanId);
+          return node ? renderHover(node, diffs?.get(span.spanId)) : null;
+        }}
+        onTap={renderTapActions && ((id) => setTap({ id, open: true }))}
+        onClick={
+          onClick &&
+          ((id) => {
+            const node = nodeOf(id);
+            if (node) onClick(node);
+          })
+        }
+        ariaLabel={ariaLabel}
+      />
+      {renderTapActions ? (
+        <Drawer open={tap?.open === true} onOpenChange={(open) => !open && closeTap()}>
+          <DrawerContent>
+            {tapped ? (
+              <>
+                <DrawerTitle className="sr-only">{tapped.name}</DrawerTitle>
+                <div className="min-h-0 overflow-y-auto pb-[env(safe-area-inset-bottom)]">
+                  <div className="border-b px-4 py-3 text-sm/relaxed">
+                    {renderHover(tapped, diffs?.get(tapped.id))}
+                  </div>
+                  {renderTapActions(tapped, closeTap)}
+                </div>
+              </>
+            ) : null}
+          </DrawerContent>
+        </Drawer>
+      ) : null}
+    </>
   );
 }
 
@@ -116,7 +158,7 @@ export function useZoomableProfile(
   // Wheel zoom and drag pan move the view off the zoomed frame until the next click.
   const [pannedRange, setPannedRange] = useState<ViewRange | null>(null);
   // Zoomed into a frame, the table lists only the functions under it, as
-  // shares of it, to match what the flame graph shows.
+  // shares of it, to match what the flamegraph shows.
   const tablePath = useMemo(
     () => (scopeTable && focus.parent ? nodePath(focus) : undefined),
     [scopeTable, focus],
@@ -126,6 +168,15 @@ export function useZoomableProfile(
     [data.stacks, stats, tablePath],
   );
 
+  // A pan clamped back onto the frame, as a drag at full width, leaves the view unzoomed.
+  const panTo = (range: ViewRange) => {
+    const frame = frameRange(focus);
+    const same =
+      Math.abs(range.start - frame.start) < 1e-9 && Math.abs(range.end - frame.end) < 1e-9;
+    setPannedRange(same ? null : range);
+  };
+  const togglePin = (node: FlameNode) =>
+    highlight.togglePin({ key: node.key, name: node.name, file: node.file });
   const zoomTo = (path: string[]) => {
     setPannedRange(null);
     onZoom(path);
@@ -145,13 +196,27 @@ export function useZoomableProfile(
     focus,
     zoomed: focus.parent !== undefined || pannedRange !== null,
     range: pannedRange ?? frameRange(focus),
-    setPannedRange,
+    setPannedRange: panTo,
     zoomTo,
     tablePath,
     tableStats,
     tableTotal: tablePath ? focus.total : tree.root.total,
     sourceUrlOf,
+    /** Highlights every frame of the node's function, or clears that highlight. */
+    togglePin,
     /** The right-click menu of a frame; `onShowCallers` adds callers and callees. */
+    renderFrameActions: (node: FlameNode, onDone: () => void, onShowCallers?: () => void) => (
+      <FrameActionList
+        node={node}
+        onZoom={() => zoomTo(nodePath(node))}
+        pinned={highlight.pinned?.key === node.key}
+        sourceUrl={sourceUrlOf(node.key)}
+        onResetZoom={() => zoomTo([])}
+        onTogglePin={() => togglePin(node)}
+        onShowCallers={onShowCallers}
+        onDone={onDone}
+      />
+    ),
     renderFrameMenu: (node: FlameNode, onShowCallers?: () => void) => (
       <FrameMenuItems
         node={node}
@@ -159,7 +224,7 @@ export function useZoomableProfile(
         sourceUrl={sourceUrlOf(node.key)}
         onZoom={() => zoomTo(nodePath(node))}
         onResetZoom={() => zoomTo([])}
-        onTogglePin={() => highlight.togglePin({ key: node.key, name: node.name, file: node.file })}
+        onTogglePin={() => togglePin(node)}
         onShowCallers={onShowCallers}
       />
     ),

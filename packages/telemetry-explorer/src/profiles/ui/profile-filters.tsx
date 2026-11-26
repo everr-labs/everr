@@ -68,6 +68,7 @@ export function ProfileFilters({
   sampleType,
   persistentFilters,
   persistentFilterCount,
+  narrowToolbar,
   onChange,
 }: {
   repo: ProfilesRepositoryLike;
@@ -77,10 +78,12 @@ export function ProfileFilters({
   sampleType: SampleTypeOption | undefined;
   persistentFilters?: ReactNode;
   persistentFilterCount: number;
+  narrowToolbar?: ReactNode;
   onChange: (patch: ProfileFilterPatch) => void;
 }) {
   return (
     <ExploreFilterRail
+      narrowToolbar={narrowToolbar}
       label="Profile filters"
       persistentFilters={persistentFilters}
       persistentFilterCount={persistentFilterCount}

@@ -32,12 +32,14 @@ export function TimeRuler({ range, className }: { range: ViewRange; className?: 
     <div
       aria-hidden
       className={cn(
-        "text-muted-foreground flex h-7 shrink-0 justify-between border-b px-2 font-mono text-[10px]",
+        "@container text-muted-foreground flex h-7 shrink-0 justify-between border-b px-2 font-mono text-[10px]",
         className,
       )}
     >
+      {/* A narrow ruler, the waterfall's timeline on a phone, keeps the ends
+          and the middle, so the labels never run into each other. */}
       {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} className="pt-1.5">
+        <span key={i} className={cn("pt-1.5", i % 2 === 1 && "@max-[22rem]:hidden")}>
           {formatDuration(range.start + ((range.end - range.start) * i) / 4, "ms")}
         </span>
       ))}
@@ -62,6 +64,8 @@ export function TraceFlamegraph({
   renderHover,
   onHoverChange,
   renderContextMenu,
+  onTap,
+  onClick,
   ariaLabel = "Trace flamegraph. Select spans using the waterfall, or click a flamegraph bar. Pinch to zoom and drag to pan.",
   ref,
 }: {
@@ -85,6 +89,10 @@ export function TraceFlamegraph({
   onHoverChange?: (id: string | undefined) => void;
   /** Menu items for a right-clicked bar. Without it the browser's menu shows. */
   renderContextMenu?: (id: string) => ReactNode;
+  /** A finger tapped a bar; without it the bar's hover details stay up instead. */
+  onTap?: (id: string) => void;
+  /** A mouse click on a bar. With it, neither a click nor a tap selects the bar. */
+  onClick?: (id: string) => void;
   ariaLabel?: string;
   ref?: Ref<FlamegraphHandle>;
 }) {
@@ -233,6 +241,19 @@ export function TraceFlamegraph({
     [model.durationMs, range, onRangeChange],
   );
 
+  // A tapped bar's details close on a touch anywhere else, as a tab switch.
+  const tapped = hover?.tapped === true;
+  useEffect(() => {
+    if (!tapped) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target === canvasRef.current) return;
+      setHover(undefined);
+      onHoverChange?.(undefined);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [tapped, onHoverChange]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -333,7 +354,9 @@ export function TraceFlamegraph({
               const drag = dragRef.current;
               if (drag) {
                 const delta = event.clientX - drag.x;
-                if (Math.abs(delta) > 3) drag.moved = true;
+                // A finger drifts sideways at the start of a vertical swipe, so
+                // touch needs a clearer drag before it pans.
+                if (Math.abs(delta) > (event.pointerType === "touch" ? 10 : 3)) drag.moved = true;
                 if (drag.moved) {
                   const width = drag.range.end - drag.range.start;
                   const start = Math.max(
@@ -367,11 +390,17 @@ export function TraceFlamegraph({
               dragRef.current = null;
               if (moved || menuOpenedRef.current) return;
               const hit = hoverAt(event);
-              if (hit) {
-                directSelectionRef.current =
-                  hit.span.span.spanId === selectedSpanId ? undefined : hit.span.span.spanId;
-                onSelect(hit.span.span.spanId);
-                if (event.pointerType === "touch") changeHover({ ...hit, tapped: true });
+              if (!hit) return;
+              const id = hit.span.span.spanId;
+              if (!onClick) {
+                directSelectionRef.current = id === selectedSpanId ? undefined : id;
+                onSelect(id);
+              }
+              if (event.pointerType === "touch") {
+                if (onTap) onTap(id);
+                else changeHover({ ...hit, tapped: true });
+              } else if (onClick) {
+                onClick(id);
               }
             }}
             onPointerCancel={(event) => {
@@ -390,7 +419,6 @@ export function TraceFlamegraph({
               menuTargetRef.current = barAt(event)?.span.spanId;
               changeHover(undefined);
             }}
-            onDoubleClick={() => onRangeChange({ start: 0, end: model.durationMs })}
           />
         </BarsSurface>
       </ScrollArea>
@@ -419,7 +447,11 @@ export function TraceFlamegraph({
           className="pointer-events-none absolute z-20 max-w-64 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md"
           style={{
             left: Math.max(8, hover.x),
-            top: Math.min(hover.y + 35, (containerRef.current?.clientHeight ?? 160) - 65),
+            // Never above the bars, over the controls, even while they measure 0 high.
+            top: Math.max(
+              0,
+              Math.min(hover.y + 35, (containerRef.current?.clientHeight ?? 160) - 65),
+            ),
           }}
         >
           {renderHover ? (

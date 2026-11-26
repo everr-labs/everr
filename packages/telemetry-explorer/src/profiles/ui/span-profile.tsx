@@ -182,18 +182,20 @@ function SpanFlamegraph({ data, unit }: { data: ProfileStacks; unit: string }) {
           onRangeChange={profile.setPannedRange}
           onSelect={(node) => zoomTo(nodePath(node))}
           renderContextMenu={(node) => profile.renderFrameMenu(node)}
+          renderTapActions={(node, close) => profile.renderFrameActions(node, close)}
+          onClick={profile.togglePin}
           renderHover={(node) => <FrameDetails frame={node} unit={unit} total={total} />}
-          ariaLabel="Span profile flame graph. Click a frame to zoom into it, pinch to zoom, drag to pan, double-click to reset."
+          ariaLabel="Span profile flamegraph. Click a frame to highlight its function, right-click or tap it for its actions, pinch to zoom, drag to pan."
         />
       </div>
-      <div className="min-h-0 flex-[2] overflow-y-auto border-t">
+      <div className="flex min-h-0 flex-[2] flex-col border-t">
         {tablePath ? <ScopedTableCaption frame={focus} /> : null}
         <TopFunctionsTable
           stats={profile.tableStats}
           unit={unit}
           total={profile.tableTotal}
           {...highlight.table}
-          activateHint="Highlight in the flame graph"
+          activateHint="Highlight in the flamegraph"
           onActivate={highlight.togglePin}
           sourceUrlOf={profile.sourceUrlOf}
         />
