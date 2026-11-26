@@ -2,6 +2,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { describe, expect, it } from "vite-plus/test";
 import type { LogsRepositoryLike } from "../../logs/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
+import { memoryFilterOptionsCache } from "../../testing/filter-options-cache";
 import { unionEnvironmentOptions, unionServiceOptions } from "./explore-filter-options";
 
 const timeRange: TimeRange = { from: "now-1h", to: "now" };
@@ -137,5 +138,52 @@ describe("profiles in the shared options", () => {
       profilesRepo,
     );
     expect(options.select(await options.queryFn())).toEqual(["perf", "prod"]);
+  });
+});
+
+describe("last known options", () => {
+  const key = ["explore", "union-service-options"];
+  const sources = [logsRepo(["web"], []), tracesRepo([], [])] as const;
+
+  it("stores a fetched list under a key without the time range", async () => {
+    const cache = memoryFilterOptionsCache();
+    const options = unionServiceOptions(
+      ...sources,
+      { timeRange, selected: [] },
+      noMetrics,
+      noProfiles,
+      cache,
+    );
+    await options.queryFn();
+    expect(cache.read(key)).toEqual(["web"]);
+  });
+
+  it("does not replace the last known list with an empty one", async () => {
+    const cache = memoryFilterOptionsCache([[key, ["api"]]]);
+    const options = unionServiceOptions(
+      logsRepo([], []),
+      tracesRepo([], []),
+      { timeRange, selected: [] },
+      noMetrics,
+      noProfiles,
+      cache,
+    );
+    await options.queryFn();
+    expect(cache.read(key)).toEqual(["api"]);
+  });
+
+  it("stores environments apart from services", async () => {
+    const cache = memoryFilterOptionsCache();
+    const options = unionEnvironmentOptions(
+      logsRepo([], ["production"]),
+      tracesRepo([], []),
+      { timeRange, selected: [] },
+      noMetrics,
+      noProfiles,
+      cache,
+    );
+    await options.queryFn();
+    expect(cache.read(["explore", "union-environment-options"])).toEqual(["production"]);
+    expect(cache.read(key)).toBeUndefined();
   });
 });

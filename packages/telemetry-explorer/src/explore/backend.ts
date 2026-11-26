@@ -2,6 +2,7 @@ import type { ErrorsRepositoryLike, RelatedSpan } from "../errors";
 import type { LogsExplorerProps, LogsRepositoryLike } from "../logs";
 import type { MetricsRepositoryLike } from "../metrics";
 import type { ProfilesRepositoryLike, RuntimeMetricsRepositoryLike } from "../profiles";
+import type { FilterOptionsCache } from "../filters/data/filter-options-cache";
 import type { TracesRepositoryLike } from "../traces";
 import type { QueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
@@ -40,6 +41,13 @@ export interface ExploreBackend {
    * maps them, and the panel cannot name that shape.
    */
   useErrorTraceSpans: (traceId: string, enabled: boolean) => ErrorTraceSpans;
+  /**
+   * The store that keeps the last list of each filter dropdown, so one opens
+   * with a list before its request returns. A hook, because the store belongs
+   * to the signed-in user and organization the page reads from its route.
+   * Without it, a dropdown waits for the request.
+   */
+  useFilterOptionsCache?: () => FilterOptionsCache | undefined;
   /** The link from a log row to its CI run, for an app that has CI runs. */
   ciRunLinks?: Pick<LogsExplorerProps, "resolveJobId" | "renderRunLink">;
 }

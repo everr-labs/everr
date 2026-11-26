@@ -4,6 +4,7 @@ import type { MetricsRepositoryLike } from "../../metrics/data/repository";
 import type { ProfilesRepositoryLike } from "../../profiles/data/repository";
 import type { TracesRepositoryLike } from "../../traces/data/repository";
 import { ENVIRONMENT_ATTRIBUTE } from "../ui/dedicated-attributes";
+import { type FilterOptionsCache, withLastKnown } from "./filter-options-cache";
 
 // The Explore Service/Environment filters are shared params that persist across
 // the Logs/Errors/Traces/Metrics/Profiles views, so their option lists must be
@@ -32,8 +33,9 @@ export function unionServiceOptions(
   input: { timeRange: TimeRange; selected: string[] },
   metricsRepo: MetricsFilterSource,
   profilesRepo: ProfileFilterOptionsRepo,
+  cache?: FilterOptionsCache,
 ) {
-  return {
+  const options = {
     queryKey: ["explore", "union-service-options", input.timeRange] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], async (timeRange) => {
@@ -57,6 +59,7 @@ export function unionServiceOptions(
     // service stays listed without forcing a refetch when the selection changes.
     select: (data: string[]) => mergeOptions(data, input.selected),
   };
+  return withLastKnown(options, cache, ["explore", "union-service-options"]);
 }
 
 export function unionEnvironmentOptions(
@@ -65,8 +68,9 @@ export function unionEnvironmentOptions(
   input: { timeRange: TimeRange; selected: string[] },
   metricsRepo: MetricsFilterSource,
   profilesRepo: ProfileFilterOptionsRepo,
+  cache?: FilterOptionsCache,
 ) {
-  return {
+  const options = {
     queryKey: ["explore", "union-environment-options", input.timeRange] as const,
     queryFn: () =>
       inViewerTimeRange(input.timeRange, [], async (timeRange) => {
@@ -91,4 +95,5 @@ export function unionEnvironmentOptions(
       }),
     select: (data: string[]) => mergeOptions(data, input.selected),
   };
+  return withLastKnown(options, cache, ["explore", "union-environment-options"]);
 }

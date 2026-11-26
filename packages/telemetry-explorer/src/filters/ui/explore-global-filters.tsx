@@ -10,6 +10,7 @@ import {
   unionEnvironmentOptions,
   unionServiceOptions,
 } from "../data/explore-filter-options";
+import { useFilterOptionsCache } from "../data/filter-options-cache";
 import { ExploreFilterPill } from "./explore-filter-pill";
 
 // The top zone of the Explore rail. It holds the two filters that stay set when
@@ -44,6 +45,7 @@ export function ExploreGlobalFilters({
   onEnvironmentChange: (values: string[]) => void;
 }) {
   const id = useId();
+  const cache = useFilterOptionsCache();
   // A list, and not two blocks of markup, so that the two filters stay the same.
   // They use one control with different words, and the user reads them as a
   // pair.
@@ -59,6 +61,7 @@ export function ExploreGlobalFilters({
         { timeRange, selected: service },
         metricsRepo,
         profilesRepo,
+        cache,
       ),
       placeholder: "All services",
       searchPlaceholder: "Search services...",
@@ -74,6 +77,7 @@ export function ExploreGlobalFilters({
         { timeRange, selected: environment },
         metricsRepo,
         profilesRepo,
+        cache,
       ),
       placeholder: "All environments",
       searchPlaceholder: "Search environments...",

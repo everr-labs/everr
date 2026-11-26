@@ -12,6 +12,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { type ComponentProps, useState } from "react";
+import { useFilterOptionsCache } from "../../filters/data/filter-options-cache";
 import { attributeKeysOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeKey, AttributeSource } from "../schemas";
@@ -54,8 +55,9 @@ export function AttributeKeyPicker({
   finalFocus?: ComponentProps<typeof PopoverContent>["finalFocus"];
 }) {
   const [open, setOpen] = useState(false);
+  const cache = useFilterOptionsCache();
   const { data: keys = [], isLoading } = useQuery({
-    ...attributeKeysOptions(repo, { timeRange }, { domain }),
+    ...attributeKeysOptions(repo, { timeRange }, { domain }, cache),
     enabled: open,
   });
 

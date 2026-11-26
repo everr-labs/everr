@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vite-plus/test";
+import { memoryFilterOptionsCache } from "../../testing/filter-options-cache";
+import { FilterOptionsCacheProvider } from "../../filters/data/filter-options-cache";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter } from "../schemas";
 import { AttributeFilterPill } from "./attribute-filter-pill";
@@ -99,5 +101,61 @@ describe("AttributeFilterPill", () => {
     // Discovery mock returns production/staging; the selected value must remain
     // a selectable (checked) option so it can be deselected.
     expect(screen.getByRole("option", { name: "legacy-value" })).toBeInTheDocument();
+  });
+
+  describe("with a last known list", () => {
+    const cache = () =>
+      memoryFilterOptionsCache([
+        [
+          ["logs", "attributeValues", "resource", "deployment.environment"],
+          ["canary", "production"],
+        ],
+      ]);
+
+    function renderWithCache(attributeValues: AttributeRepositoryLike["attributeValues"]) {
+      render(
+        <QueryClientProvider client={new QueryClient()}>
+          <FilterOptionsCacheProvider value={cache()}>
+            <AttributeFilterPill
+              repo={{ attributeValues } as unknown as AttributeRepositoryLike}
+              domain="logs"
+              timeRange={timeRange}
+              filter={baseFilter}
+              defaultOpen
+              onChange={vi.fn()}
+              onRemove={vi.fn()}
+            />
+          </FilterOptionsCacheProvider>
+        </QueryClientProvider>,
+      );
+    }
+
+    it("lists the stored values before the request returns, then the fresh ones", async () => {
+      let settle!: (values: string[]) => void;
+      renderWithCache(
+        () =>
+          new Promise((resolve) => {
+            settle = resolve;
+          }),
+      );
+
+      expect(screen.getByRole("option", { name: "canary" })).toBeInTheDocument();
+
+      settle(["production", "staging"]);
+
+      expect(await screen.findByRole("option", { name: "staging" })).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "canary" })).not.toBeInTheDocument();
+    });
+
+    it("does not list the stored values in place of a search", async () => {
+      renderWithCache(() => new Promise(() => {}));
+      fireEvent.change(screen.getByPlaceholderText("Search values..."), {
+        target: { value: "stag" },
+      });
+
+      await waitFor(() =>
+        expect(screen.queryByRole("option", { name: "canary" })).not.toBeInTheDocument(),
+      );
+    });
   });
 });
