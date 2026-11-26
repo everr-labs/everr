@@ -176,7 +176,7 @@ The events of a Stream from one full snapshot up to the next. A new one starts a
 _Avoid_: checkout (rrweb's word for taking the snapshot)
 
 **Clip**:
-A time range of a Stream that leaves the page: automatically on an error, a 5xx response, or a request that gets no response (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its opening Segment carries its id; the Clip sends only the Segments the Stream has not sent yet, and its close always sends a Segment, empty when nothing changed. Clips that overlap form a run.
+A time range of a Stream that leaves the page: automatically on an error, a 5xx response, or a request that gets no response (the last 60 seconds and the next 10), or from `recorder.emitClip()` or `recorder.startClip()`. `startClip()` without `last` covers the call to `end()`; with `last` it reaches back to the start of a Generation. Its opening Segment carries its id; the Clip sends only the Segments the Stream has not sent yet, and its close always sends a Segment, empty when nothing changed. Clips that overlap form a run. A reader finds a Clip as the Segments of one Stream with the same `everr.recording.clip.start`, from that start to the last `everr.recording.segment.end`. Its id and trigger are those of the first Clip that opened in the run, and a run whose opening Segment was lost is not a Clip.
 _Avoid_: recording (the whole history), snippet, replay
 
 **Segment**:

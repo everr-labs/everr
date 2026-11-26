@@ -44,7 +44,7 @@ Preconditions:
 
 - The public key's allowed origin must be exactly `$SDK_PAGE_ORIGIN` (`http://127.0.0.1:<port>`); the page is never served on `localhost`.
 - The collector's CORS library only accepts `Access-Control-Request-Headers` in the order browsers send them (lowercase, sorted). `web-doctor` sends them that way; a hand-written `curl` preflight with another order gets `204` without `Access-Control-Allow-Origin`.
-- A recording is only uploaded after a trigger (error or failed request). Keep interacting for a few seconds after the trigger: an idle tail produces no further segment and the player labels the gap (`1 missing segment`).
+- A recording is only uploaded after a trigger (error or failed request). A Clip closes 10 seconds after its trigger and sends its closing Segment then. Keep the page open until then: a page unload sends nothing, so the Clip ends at the last Segment sent.
 - Several triggers close together share one clip; the trace page then shows the clip with the first trigger's label (`ERROR TRIGGER`), not `NETWORK TRIGGER`.
 - `agent-browser errors` lists page errors including the intentional `VerifySdkError`; it accumulates across the session, so it is not an assertion.
 - `web-sdk-page --local` still needs a web run (it serves the page on that run's `SDK_PAGE_ORIGIN`); only the export target changes.

@@ -48,6 +48,57 @@ export async function query<T>(
   return result.json<T>();
 }
 
+/**
+ * An App query's rows as JSON lines, unparsed, for a caller that passes them
+ * on. Resolves once ClickHouse answers, so a failing query rejects before the
+ * caller starts a response. Stopping early, before the first row or while
+ * waiting for one, closes the result, which cancels the query and frees its
+ * connection.
+ */
+export async function queryLines(
+  query: string,
+  organizationId: string,
+  query_params?: Record<string, unknown>,
+  clickhouse_settings?: AppQuerySettings,
+): Promise<AsyncIterable<string>> {
+  if (typeof organizationId !== "string" || !organizationId) {
+    throw new Error("Missing workspace context");
+  }
+
+  const result = await instrumentClickhouseOperation({ client: "app", operation: "QUERY" }, () =>
+    clickhouse.query({
+      query,
+      query_params,
+      format: "JSONEachRow",
+      clickhouse_settings: appQuerySettings(organizationId, clickhouse_settings),
+    }),
+  );
+
+  const rows = (async function* () {
+    for await (const batch of result.stream()) {
+      for (const row of batch) yield row.text;
+    }
+  })();
+  // A generator stopped before its first row never runs, and its return()
+  // waits behind a next() that is waiting for a row. So stopping closes the
+  // result itself, and the read it interrupts ends without an error.
+  let stopped = false;
+  const done: IteratorResult<string> = { done: true, value: undefined };
+  const iterator: AsyncIterator<string> = {
+    next: () =>
+      rows.next().catch((error: unknown) => {
+        if (stopped) return done;
+        throw error;
+      }),
+    return: async () => {
+      stopped = true;
+      result.close();
+      return done;
+    },
+  };
+  return { [Symbol.asyncIterator]: () => iterator };
+}
+
 export function runSqlApiQuery<Format extends DataFormat>(
   query: string,
   organizationId: string,

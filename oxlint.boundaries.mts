@@ -371,6 +371,22 @@ export default {
                 message:
                   "Construct identity and request locks with explicit dependencies; environment and instances belong to server composition.",
               },
+              {
+                from: {
+                  file: {
+                    path: "!packages/app/src/data/replay/**",
+                  },
+                },
+                disallow: {
+                  to: {
+                    file: {
+                      path: "packages/app/src/data/replay/!(index|options|server).ts",
+                    },
+                  },
+                },
+                message:
+                  "Import the replay module through data/replay/index.ts (the CLI read) or options.ts and server.ts (the in-app player); its other files are internals.",
+              },
             ],
           },
         ],

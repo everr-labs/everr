@@ -1,3 +1,4 @@
+import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 const { mockQuery, mockInsert, mockCommand, mockJson, mockInstrumentClickhouseOperation } =
@@ -43,7 +44,13 @@ vi.mock("#app/telemetry/clickhouse.ts", () => ({
 
 vi.unmock("#app/lib/clickhouse.ts");
 
-import { previewSqlApi, query, querySqlApi, querySqlApiWithMeta } from "#app/lib/clickhouse.ts";
+import {
+  previewSqlApi,
+  query,
+  queryLines,
+  querySqlApi,
+  querySqlApiWithMeta,
+} from "#app/lib/clickhouse.ts";
 import { adminCommand, insertRows } from "#app/lib/clickhouse-writer.ts";
 
 const ORG = "org42";
@@ -78,6 +85,41 @@ describe("query", () => {
       format: "JSONEachRow",
       clickhouse_settings: { max_execution_time: 30 },
     });
+  });
+});
+
+describe("queryLines", () => {
+  const batches = () => [[{ text: '{"n":1}' }, { text: '{"n":2}' }], [{ text: '{"n":3}' }]];
+  const answer = () => {
+    const close = vi.fn();
+    mockQuery.mockResolvedValue({ stream: () => Readable.from(batches()), close });
+    return close;
+  };
+
+  it("gives each row as the JSON line ClickHouse wrote", async () => {
+    answer();
+    const lines: string[] = [];
+    for await (const line of await queryLines("SELECT n", ORG)) lines.push(line);
+    expect(lines).toEqual(['{"n":1}', '{"n":2}', '{"n":3}']);
+  });
+
+  it("releases the connection when the reader stops before the first row", async () => {
+    const close = answer();
+    const iterator = (await queryLines("SELECT n", ORG))[Symbol.asyncIterator]();
+    await iterator.return?.();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("releases the connection when the reader stops while it waits for a row", async () => {
+    const stalled = new Readable({ objectMode: true, read() {} });
+    const close = vi.fn(() => stalled.destroy(new Error("ResultSet has been closed")));
+    mockQuery.mockResolvedValue({ stream: () => stalled, close });
+    const iterator = (await queryLines("SELECT n", ORG))[Symbol.asyncIterator]();
+    const waiting = iterator.next();
+    const stopped = iterator.return?.();
+    expect(close).toHaveBeenCalledOnce();
+    await expect(waiting).resolves.toEqual({ done: true, value: undefined });
+    await stopped;
   });
 });
 
