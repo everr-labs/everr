@@ -7,7 +7,13 @@ vi.mock("#app/lib/clickhouse.ts", () => ({
 }));
 
 import { query } from "#app/lib/clickhouse.ts";
-import { pageAt, replayHttpError, sessionJourney, type SessionJourney } from "./session.ts";
+import {
+  clipEvents,
+  pageAt,
+  replayHttpError,
+  sessionJourney,
+  type SessionJourney,
+} from "./session.ts";
 
 const mockedQuery = vi.mocked(query);
 
@@ -613,6 +619,56 @@ describe("pageAt", () => {
       sessionId: SESSION,
       at: new Date(T0 - HOUR).toISOString(),
     }).catch((error: unknown) => error);
+    expect(replayHttpError(failure).status).toBe(404);
+  });
+});
+
+describe("clipEvents", () => {
+  it("joins a snapshot sent in pieces, sorts by time, ends at the Clip's end, and reports gaps", async () => {
+    const snapshot = JSON.stringify(snapshotEvent(T0 + 100));
+    const half = Math.floor(snapshot.length / 2);
+    plan({
+      clips: [clipRow(), clipRow()],
+      recordings: [
+        segRow(eventBody([metaEvent(T0 + 50)]), { segment_index: 0 }),
+        segRow(snapshot.slice(0, half), {
+          segment_index: 1,
+          event_index: "7",
+          piece: "0",
+          pieces: "2",
+        }),
+        segRow(snapshot.slice(half), {
+          segment_index: 2,
+          event_index: "7",
+          piece: "1",
+          pieces: "2",
+        }),
+        segRow(eventBody([clickEvent(T0 + 4_000), clickEvent(T0 + 3_000)]), { segment_index: 4 }),
+        segRow(eventBody([clickEvent(T0 + 5_001)]), { segment_index: 5 }),
+      ],
+    });
+
+    const { events, gaps } = await clipEvents(ORG, CLIP_ID, T0);
+
+    expect(events.map((e) => [e.type, e.timestamp])).toEqual([
+      [4, T0 + 50],
+      [2, T0 + 100],
+      [3, T0 + 3_000],
+      [3, T0 + 4_000],
+    ]);
+    expect(gaps).toEqual([{ kind: "index", streamId: STREAM, after: 2, missing: 1 }]);
+    expect(callsFor("clips")[0]?.params).toMatchObject({ clipId: CLIP_ID });
+    expect(callsFor("segments")[0]?.params).toMatchObject({
+      streams: [STREAM],
+      fromMs: T0,
+      toMs: T0 + 5_000,
+    });
+  });
+
+  it("answers 404 for a clip id with no Clip near its start", async () => {
+    plan({ clips: [], recordings: [] });
+    const failure = await clipEvents(ORG, CLIP_ID, T0).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ code: "outside_clip" });
     expect(replayHttpError(failure).status).toBe(404);
   });
 });

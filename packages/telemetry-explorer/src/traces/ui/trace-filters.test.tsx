@@ -21,6 +21,7 @@ const defaultValue = {
   maxMs: undefined,
   status: "all" as const,
   attributes: [],
+  withRecording: false,
 };
 
 function renderWithQueryClient(children: ReactNode) {
@@ -37,6 +38,7 @@ describe("TraceFilters rail", () => {
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={defaultValue}
+        recordingFilter={false}
         persistentFilters={<div>persistent zone</div>}
         onChange={vi.fn()}
       />,
@@ -75,6 +77,7 @@ describe("TraceFilters rail", () => {
             },
           ],
         }}
+        recordingFilter={false}
         onChange={onChange}
       />,
     );
@@ -92,6 +95,7 @@ describe("TraceFilters rail", () => {
       maxMs: undefined,
       status: "all",
       attributes: [],
+      withRecording: false,
     });
   });
 
@@ -102,6 +106,7 @@ describe("TraceFilters rail", () => {
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={{ ...defaultValue, status: "error" }}
+        recordingFilter={false}
         persistentFilterCount={2}
         onChange={onChange}
       />,
@@ -118,10 +123,47 @@ describe("TraceFilters rail", () => {
         repo={makeRepo()}
         timeRange={defaultTimeRange}
         value={defaultValue}
+        recordingFilter={false}
         persistentFilterCount={2}
         onChange={vi.fn()}
       />,
     );
     expect(screen.queryByRole("button", { name: "Clear page filters" })).not.toBeInTheDocument();
+  });
+});
+
+describe("TraceFilters session recording switch", () => {
+  function renderRail(props: { recordingFilter: boolean; withRecording?: boolean }) {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <TraceFilters
+        repo={makeRepo()}
+        timeRange={defaultTimeRange}
+        value={{ ...defaultValue, withRecording: props.withRecording ?? false }}
+        recordingFilter={props.recordingFilter}
+        onChange={onChange}
+      />,
+    );
+    return onChange;
+  }
+
+  it("is drawn only where the host has session recordings", () => {
+    renderRail({ recordingFilter: false });
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+
+  it("turns the filter on", () => {
+    const onChange = renderRail({ recordingFilter: true });
+    const toggle = screen.getByRole("switch", { name: "With session recording" });
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith({ withRecording: true });
+  });
+
+  it("counts as a page filter and is reset by Clear page filters", () => {
+    const onChange = renderRail({ recordingFilter: true, withRecording: true });
+    expect(screen.getByRole("switch", { name: "With session recording" })).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ withRecording: false }));
   });
 });

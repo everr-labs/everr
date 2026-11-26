@@ -14,6 +14,7 @@ import {
   decodeAttributeValueRows,
 } from "../../attribute-filter/sql/values";
 import { buildAttributeClauses } from "../../attribute-filter/sql/where";
+import { recordedTraceIdsSql } from "../../recordings/sql/coverage";
 import { attributeText, flattenAttributes, type JsonAttributes } from "../../sql/json-attributes";
 import { resourceAttribute, resourceAttributeKeyExists } from "../../sql/resource-attributes";
 import { TRACES_ATTRIBUTE_SOURCES, tracesAttributeColumn } from "../sql/attribute-columns";
@@ -35,6 +36,7 @@ type SpanRow = Omit<Span, "events" | "links" | "spanAttributes" | "resourceAttri
 
 const FROM_TS_SQL = "parseDateTime64BestEffort({fromTs:String}, 9)";
 const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
+const SEARCH_TO_TS_SQL = "parseDateTime64BestEffort({searchToTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
 const TRACE_DURATION_SQL = `toUInt64(dateDiff('nanosecond', min(Timestamp),
                             max(addNanoseconds(Timestamp, Duration))))`;
@@ -68,12 +70,14 @@ const tracesTimeBound = (param: string) => `parseDateTime64BestEffort({${param}:
 
 export class TracesRepository {
   private readonly tableName: string;
+  private readonly recordingsTable: string;
 
   constructor(
     private readonly client: SqlClient,
     options: TracesRepositoryOptions = {},
   ) {
     this.tableName = options.tableName ?? "traces";
+    this.recordingsTable = options.recordingsTable ?? "recordings";
   }
 
   async search(input: SearchTracesInput): Promise<TraceSummary[]> {
@@ -160,6 +164,18 @@ export class TracesRepository {
         );
         Object.assign(params, built.params);
       });
+
+    if (input.withRecording) {
+      // A cursor lowers toTs to the page boundary, but a recorded Span of a
+      // trace on this page can start after that boundary.
+      params.searchToTs = input.toTs;
+      pageWhereParts.push(
+        `TraceId IN (${recordedTraceIdsSql(
+          { traces: this.tableName, recordings: this.recordingsTable },
+          { from: FROM_TS_SQL, to: SEARCH_TO_TS_SQL },
+        )})`,
+      );
+    }
 
     // durationNsRaw is an aggregate alias (UInt64); the outer query
     // exposes it as a string. Filter on the raw int to avoid a double
@@ -333,6 +349,7 @@ export class TracesRepository {
 
 export interface TracesRepositoryOptions {
   tableName?: string;
+  recordingsTable?: string;
 }
 
 export type TracesRepositoryLike = Pick<

@@ -17,11 +17,11 @@ import { DetailOverList } from "./detail-over-list";
 import { ExplorePersistentFilters } from "./persistent-filters";
 
 export function ErrorsRoute() {
-  const { repos } = useExploreBackend();
+  const { repos, sessionRecordings } = useExploreBackend();
   const search = useRouteSearch(errorsRoute.validateSearch);
   const patchSearch = useSearchPatch();
   const { service = [], environment = [] } = search;
-  const { timeRange, q, fingerprint, sort, attributes } = withTimeRange(search);
+  const { timeRange, q, fingerprint, sort, attributes, withRecording } = withTimeRange(search);
   const lastOpenedFingerprint = useLastOpened(useParams({ strict: false }).fingerprint);
 
   return (
@@ -30,9 +30,10 @@ export function ErrorsRoute() {
         <ErrorIssues
           repo={repos.errors}
           timeRange={timeRange}
-          search={{ q, service, fingerprint, sort, attributes }}
+          search={{ q, service, fingerprint, sort, attributes, withRecording }}
           environment={environment}
           persistentFilters={<ExplorePersistentFilters />}
+          sessionRecordings={sessionRecordings}
           onSearchChange={(patch) =>
             // Push a history entry per change so Back undoes filter changes one at a
             // time (including Clear page filters, which routes through this same
@@ -57,7 +58,7 @@ export function ErrorsRoute() {
 }
 
 export function ErrorPageRoute() {
-  const { repos } = useExploreBackend();
+  const { repos, sessionRecordings } = useExploreBackend();
   const fingerprint = useRouteParam("fingerprint");
   const search = useRouteSearch(ErrorIssueSearchSchema);
   const navigate = useNavigate();
@@ -70,6 +71,8 @@ export function ErrorPageRoute() {
       timeRange={timeRange}
       service={service}
       occurrence={search.occurrence}
+      withRecording={search.withRecording}
+      sessionRecordings={sessionRecordings}
       onBack={() =>
         void navigate({
           to: "/errors",

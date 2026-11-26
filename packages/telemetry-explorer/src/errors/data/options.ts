@@ -16,6 +16,7 @@ export type ErrorIssuesInfiniteInput = {
   sort: ErrorSort;
   limit: number;
   attributes: AttributeFilter[];
+  withRecording: boolean;
 };
 
 export function errorIssuesInfiniteOptions(
@@ -35,6 +36,7 @@ export function errorIssuesInfiniteOptions(
         sort: input.sort,
         limit: input.limit,
         attributes: input.attributes,
+        withRecording: input.withRecording,
       },
     ] as const,
     queryFn: ({ pageParam }: { pageParam: number }) =>
@@ -49,6 +51,7 @@ export function errorIssuesInfiniteOptions(
           limit: input.limit,
           offset: pageParam,
           attributes: input.attributes,
+          withRecording: input.withRecording,
         }),
       ),
     initialPageParam: 0,
@@ -67,6 +70,7 @@ export type ErrorIssueOptionsInput = {
   fingerprint: string;
   timeRange: TimeRange;
   service: string[];
+  withRecording: boolean;
   occurrenceLimit: number;
 };
 
@@ -78,6 +82,7 @@ export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueO
       input.fingerprint,
       input.timeRange,
       input.service,
+      input.withRecording,
       input.occurrenceLimit,
     ] as const,
     // Nothing happened in a range that holds no time, so there's no issue to show.
@@ -88,6 +93,7 @@ export function errorIssueOptions(repo: ErrorsRepositoryLike, input: ErrorIssueO
           fromTs: toClickHouseDateTime(new Date(timeRange.from)),
           toTs: toClickHouseDateTime(new Date(timeRange.to)),
           service: input.service,
+          withRecording: input.withRecording,
           occurrenceLimit: input.occurrenceLimit,
         }),
       ),

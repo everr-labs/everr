@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
-import { buildServicesQuery, buildSummaryQuery } from "./issues";
+import { buildOccurrencesQuery, buildServicesQuery, buildSummaryQuery } from "./issues";
 
 const base = {
   fromTs: "2026-06-01 00:00:00",
@@ -11,6 +11,7 @@ const base = {
   limit: 50,
   offset: 0,
   attributes: [] as never[],
+  withRecording: false,
 };
 
 describe("error attribute filtering", () => {
@@ -48,5 +49,29 @@ describe("error attribute filtering", () => {
   it("omits attribute clauses when none are given", () => {
     const { params } = buildSummaryQuery({ ...base }, "logs");
     expect(params.attrKey0).toBeUndefined();
+  });
+});
+
+describe("recording filter", () => {
+  const exceptionLogs = (sql: string) => sql.split("exception_logs AS (")[1]?.split("\n      )")[0];
+
+  it("reads recording Clips only when the filter is on", () => {
+    const off = buildSummaryQuery({ ...base, withRecording: false }, "logs");
+    const on = buildSummaryQuery({ ...base, withRecording: true }, "logs");
+
+    expect(off.sql).not.toMatch(/recording/);
+    expect(exceptionLogs(on.sql)).toContain("FROM recordings");
+    expect(exceptionLogs(on.sql)).toContain("GROUP BY stream_id, clip_start");
+    expect(exceptionLogs(on.sql)).toContain("everr.recording.stream.id");
+    expect(on.params).toEqual(off.params);
+  });
+
+  it("scopes an Error's occurrences the same way", () => {
+    const detail = { ...base, fingerprint: "fp", occurrenceLimit: 50 };
+    const off = buildOccurrencesQuery({ ...detail, withRecording: false }, "logs");
+    const on = buildOccurrencesQuery({ ...detail, withRecording: true }, "logs");
+
+    expect(off.sql).not.toMatch(/recording/);
+    expect(exceptionLogs(on.sql)).toContain("FROM recordings");
   });
 });

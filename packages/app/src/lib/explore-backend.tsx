@@ -10,6 +10,7 @@ import { remoteProfilesRepo } from "#app/data/profiles/remote-repo.ts";
 import { remoteRuntimeMetricsRepo } from "#app/data/profiles/runtime.ts";
 import { runJobsOptions, runSpansOptions } from "#app/data/runs/options.ts";
 import { remoteTracesRepo } from "#app/data/traces/remote-repo.ts";
+import { sessionRecordingsHost } from "#app/routes/_authenticated/_organization/_dashboard/_appAccess/_provisioned/_explore/-recording/host.tsx";
 
 function useCiRunSpans(traceId: string, enabled: boolean) {
   const spansQuery = useQuery({
@@ -51,6 +52,7 @@ export function createExploreBackend(queryClient: QueryClient): ExploreBackend {
       runtimeMetrics: remoteRuntimeMetricsRepo,
     },
     useErrorTraceSpans: useCiRunSpans,
+    sessionRecordings: sessionRecordingsHost,
     ciRunLinks: {
       resolveJobId: ({ traceId, jobName }) => {
         const cached = queryClient.getQueryData(runJobsOptions(traceId).queryKey);

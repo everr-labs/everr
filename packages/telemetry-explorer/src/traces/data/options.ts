@@ -19,6 +19,7 @@ export type TraceSearchOptionsInput = {
   maxMs: number | undefined;
   status: SpanStatusFilter;
   attributes: AttributeFilter[];
+  withRecording: boolean;
   limit: number;
 };
 
@@ -51,6 +52,7 @@ export function tracesSearchInfiniteOptions(input: TraceSearchOptionsInput) {
             input.maxMs === undefined ? undefined : (BigInt(input.maxMs) * MS_TO_NS).toString(),
           status: input.status,
           attributes: input.attributes,
+          withRecording: input.withRecording,
           limit: input.limit,
         }),
       ),

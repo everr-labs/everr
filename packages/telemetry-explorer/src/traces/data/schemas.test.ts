@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import { GetTraceInputSchema, TraceDetailParamsSchema, toTraceListSearch } from "./schemas";
+import {
+  GetTraceInputSchema,
+  TraceDetailParamsSchema,
+  TraceSearchParamsSchema,
+  toTraceListSearch,
+} from "./schemas";
 
 it("accepts ID-only trace requests and ignores legacy time bounds", () => {
   expect(GetTraceInputSchema.parse({ traceId: "trace-1" })).toEqual({
@@ -57,6 +62,7 @@ describe("toTraceListSearch", () => {
       minMs: 10,
       maxMs: 500,
       status: "error",
+      withRecording: true,
       start: "2026-05-21T10:12:00.000Z",
       end: "2026-05-21T10:12:02.000Z",
       span: "span-1",
@@ -73,6 +79,12 @@ describe("toTraceListSearch", () => {
       maxMs: 500,
       status: "error",
       attributes: [],
+      withRecording: true,
     });
   });
+});
+
+it.each([1, "yes", null])("reads withRecording=%s in the URL as off", (value) => {
+  expect(TraceSearchParamsSchema.parse({ withRecording: value }).withRecording).toBe(false);
+  expect(TraceDetailParamsSchema.parse({ withRecording: value }).withRecording).toBe(false);
 });

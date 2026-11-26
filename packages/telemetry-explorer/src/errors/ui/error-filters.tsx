@@ -5,6 +5,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
+import { RecordingFilterSwitch } from "../../recordings/ui/recording-filter-switch";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
@@ -20,20 +21,23 @@ export type ErrorFiltersValue = {
   fingerprint: string;
   sort: ErrorSort;
   attributes: AttributeFilter[];
+  withRecording: boolean;
 };
 
 /** The page filters set (Service and Environment are counted apart). */
 export function countErrorPageFilters(value: {
   q: string;
   attributes: readonly unknown[];
+  withRecording: boolean;
 }): number {
-  return (value.q.length > 0 ? 1 : 0) + value.attributes.length;
+  return (value.q.length > 0 ? 1 : 0) + (value.withRecording ? 1 : 0) + value.attributes.length;
 }
 
 export function ErrorFilters({
   repo,
   timeRange,
   value,
+  recordingFilter,
   persistentFilters,
   persistentFilterCount = 0,
   onChange,
@@ -41,6 +45,8 @@ export function ErrorFilters({
   repo: ErrorsRepositoryLike;
   timeRange: TimeRange;
   value: ErrorFiltersValue;
+  /** Draws the "With session recording" switch. */
+  recordingFilter: boolean;
   // The top zone of the rail: Service and Environment. The host app supplies it.
   persistentFilters?: ReactNode;
   persistentFilterCount?: number;
@@ -58,7 +64,7 @@ export function ErrorFilters({
       persistentFilters={persistentFilters}
       persistentFilterCount={persistentFilterCount}
       pageFilterCount={pageFilterCount}
-      onClear={() => onChange({ q: "", attributes: [] })}
+      onClear={() => onChange({ q: "", attributes: [], withRecording: false })}
     >
       <FilterSearchBar
         id="errors-search"
@@ -94,6 +100,13 @@ export function ErrorFilters({
           </ToggleGroupItem>
         </ToggleGroup>
       </div>
+
+      {recordingFilter && (
+        <RecordingFilterSwitch
+          checked={value.withRecording}
+          onCheckedChange={(withRecording) => onChange({ withRecording })}
+        />
+      )}
 
       <AttributeFilterSection
         repo={repo}

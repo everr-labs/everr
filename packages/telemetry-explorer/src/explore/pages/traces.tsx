@@ -23,7 +23,7 @@ import { DetailOverList } from "./detail-over-list";
 import { ExplorePersistentFilters } from "./persistent-filters";
 
 export function TracesRoute() {
-  const { repos } = useExploreBackend();
+  const { repos, sessionRecordings } = useExploreBackend();
   const search = useRouteSearch(tracesRoute.validateSearch);
   const patchSearch = useSearchPatch();
   const { timeRange } = withTimeRange(search);
@@ -44,9 +44,11 @@ export function TracesRoute() {
             maxMs: search.maxMs,
             status: search.status,
             attributes: search.attributes,
+            withRecording: search.withRecording,
           }}
           environment={environment}
           persistentFilters={<ExplorePersistentFilters />}
+          sessionRecordings={sessionRecordings}
           onSearchChange={(patch) =>
             // Push a history entry per change so Back undoes filter changes one at a
             // time (including Clear all, which routes through this same handler).
@@ -65,7 +67,7 @@ export function TracesRoute() {
 }
 
 export function TraceDetailRoute() {
-  const { repos } = useExploreBackend();
+  const { repos, sessionRecordings } = useExploreBackend();
   const traceId = useRouteParam("traceId");
   const search = useRouteSearch(TraceDetailParamsSchema);
   const navigate = useNavigate();
@@ -75,6 +77,7 @@ export function TraceDetailRoute() {
       repo={repos.traces}
       traceId={traceId}
       search={search}
+      sessionRecordings={sessionRecordings}
       onBack={() =>
         void navigate({
           to: "/traces",
