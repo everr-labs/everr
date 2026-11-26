@@ -203,6 +203,39 @@ type Emitter = [
    */
   exitFlush: () => void,
   emitSpan: EmitSpan,
+  emitNow: EmitNow,
+];
+
+/**
+ * Makes one log record for its own logs request, outside the batch, without
+ * keepalive and without the active span. It is for a record close to the size
+ * of a full request, a recording Segment for example. It gives the OTLP/JSON
+ * payload, the function that sends it once, and whether that function takes a
+ * gzipped copy of the payload (true for the fetch sender, false for a host
+ * `send`). It gives undefined when `beforeSend` drops the record. The caller
+ * decides on compression and retries. The promise gives what the transport
+ * gave (a Response from fetch), and rejects on a failure.
+ *
+ * `beforeSend` sees the record with the event name as its body, as `emit`
+ * gives by default, and can drop it or change its attributes. The body on the
+ * wire is always `body`: the hook never parses or rewrites a large payload.
+ */
+export type EmitNow = (
+  eventName: string,
+  attributes: Record<string, AttrValue | null | undefined>,
+  timestamp: number,
+  body: string,
+) => SegmentRequest | undefined;
+
+/**
+ * One request of `emitNow`: the OTLP/JSON payload, the function that sends it
+ * once (with a gzipped copy of the payload, or plain), and whether that
+ * function takes a gzipped copy.
+ */
+export type SegmentRequest = [
+  payload: string,
+  send: (gzipped?: ArrayBuffer) => Promise<unknown>,
+  gzip: boolean,
 ];
 
 // These values are the same as the values in the browser telemetry client of
@@ -253,11 +286,13 @@ export function createEmitter(
   resourceAttributes: Record<string, AttrValue | null | undefined>,
   scope: { name: string; version: string },
   /** The code calls this for each record. It returns the context envelope. */
-  envelope: () => Record<string, AttrValue | null | undefined>,
+  envelope: (session?: string) => Record<string, AttrValue | null | undefined>,
   /** The hook of the host on each item. Refer to {@link BeforeSend}. */
   beforeSend?: BeforeSend,
   /** The span active at the time of the log, when there is one. */
   activeSpan?: (time?: number) => SpanContext | undefined,
+  /** Sees each item that passes the hook, before it goes in a queue or a request. */
+  observe?: (item: SendEvent) => void,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
@@ -265,6 +300,10 @@ export function createEmitter(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
   const applyBeforeSend = createBeforeSendGuard(beforeSend);
+  const withEnvelope = (attributes: Record<string, AttrValue | null | undefined> = {}) => {
+    const session = attributes["session.id"];
+    return { ...envelope(typeof session === "string" ? session : undefined), ...attributes };
+  };
 
   // One function makes the OTLP envelope for the two signals. The three keys
   // are different only in their names: resourceLogs, scopeLogs, and logRecords
@@ -406,6 +445,36 @@ export function createEmitter(
     }
   };
 
+  const logRecord = (
+    eventName: string,
+    attributes: Record<string, AttrValue | null | undefined> | undefined,
+    timestamp: string,
+    severityNumber: number,
+    body: string,
+    span: SpanContext | undefined,
+  ): OtlpLogRecord | undefined => {
+    const item = applyBeforeSend({
+      kind: "log",
+      eventName,
+      attributes: withEnvelope(attributes),
+      severityNumber,
+      body,
+    });
+    // The type of the hook permits a return of the other kind. Thus this test
+    // is the narrowing that the union needs, and it is not a check on the type
+    // at run time.
+    if (item?.kind !== "log") return;
+    observe?.(item);
+    return {
+      timeUnixNano: timestamp,
+      severityNumber: item.severityNumber,
+      eventName: item.eventName,
+      body: toAnyValue(item.body),
+      attributes: toKeyValues(item.attributes),
+      ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
+    };
+  };
+
   const emit: Emit = (
     eventName,
     attributes,
@@ -418,27 +487,32 @@ export function createEmitter(
     // queued. A log with an earlier timestamp takes the span that was already
     // active at that time, and not a span that became active after it.
     const timestamp = unixNano(time ?? Date.now());
-    const span = activeSpan?.(time);
-    const item = applyBeforeSend({
-      kind: "log",
+    const record = logRecord(
       eventName,
-      attributes: { ...envelope(), ...attributes },
+      attributes,
+      timestamp,
       severityNumber,
       body,
-    });
-    // The type of the hook permits a return of the other kind. Thus this test
-    // is the narrowing that the union needs, and it is not a check on the type
-    // at run time.
-    if (item?.kind !== "log") return;
-    queue.push({
-      timeUnixNano: timestamp,
-      severityNumber: item.severityNumber,
-      eventName: item.eventName,
-      body: toAnyValue(item.body),
-      attributes: toKeyValues(item.attributes),
-      ...(span ? { traceId: span.traceId, spanId: span.spanId, flags: span.traceFlags } : {}),
-    });
+      activeSpan?.(time),
+    );
+    if (!record) return;
+    queue.push(record);
     schedule();
+  };
+
+  const emitNow: EmitNow = (eventName, attributes, time, body) => {
+    // The hook sees the event name as the body; the payload goes on the wire.
+    const record = logRecord(eventName, attributes, unixNano(time), 9, eventName, undefined);
+    if (!record) return;
+    record.body = toAnyValue(body);
+    const payload = build("Logs", "logRecords", [record]);
+    return [
+      payload,
+      // The send starts in the call. A synchronous error is a rejection.
+      (gzipped) => new Promise((resolve) => resolve(send("logs", payload, false, gzipped))),
+      // A host sender takes text only. The flag that marks the fetch sender.
+      truncateAtExit,
+    ];
   };
 
   const emitSpan: EmitSpan = (
@@ -461,11 +535,12 @@ export function createEmitter(
     const item = applyBeforeSend({
       kind: "span",
       name,
-      attributes: { ...envelope(), ...attributes },
+      attributes: withEnvelope(attributes),
       status,
       links,
     });
     if (item?.kind !== "span") return;
+    observe?.(item);
     const wireLinks = item.links?.map((link) => {
       const attributes = toKeyValues(link.attributes ?? {});
       return {
@@ -491,5 +566,5 @@ export function createEmitter(
     schedule();
   };
 
-  return [emit, flush, exitFlush, emitSpan];
+  return [emit, flush, exitFlush, emitSpan, emitNow];
 }

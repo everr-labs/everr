@@ -1,6 +1,6 @@
 # Browser Events From @everr/otel-web
 
-Use this rule when investigating web-app behavior: page views, clicks, web vitals, frontend errors, or browser-issued requests. It catalogs everything the `@everr/otel-web` SDK emits so you can filter by real names instead of guessing.
+Use this rule when investigating web-app behavior: page views, clicks, web vitals, frontend errors, browser-issued requests, or session recordings. It catalogs everything the `@everr/otel-web` SDK emits so you can filter by real names instead of guessing.
 
 ## Where Browser Data Lands
 
@@ -56,6 +56,43 @@ The INP vital does not use that prefix. It carries the same attribution as the `
 
 `exception.type`, `exception.message`, `exception.stacktrace`, `everr.error.mechanism` (`onerror`, `unhandledrejection`, `react`; a manual `captureError` record carries no mechanism), `everr.react.component_stack` (React boundaries only). These are error logs (`SeverityNumber >= 17`), so the fingerprint grouping in SKILL.md applies to them unchanged.
 
+### Recording Segments
+
+Only with `recording()` from `@everr/otel-web/recording`. A page's buffer (the Stream) is sent as `everr.browser.recording.segment` logs, each event at most once, while a Clip needs it. The `Body` is a JSON array of rrweb events that is already masked. A Segment holds at most 950 KB and never spans two full snapshots, and its `Timestamp` is that of its first event. A Clip is a time range of the Stream. Clips that overlap form a run, and all the Segments of a run carry the same `everr.recording.clip.start`, so group the Segments of a Stream by it to get one recording per run. Each Segment says that the Stream is complete from `everr.recording.clip.start` through `everr.recording.segment.end`, and the first Segment of the range starts with a Meta event and a full snapshot. The opening Segment of a Clip carries its id. Two Clips can share Segments, also ones sent before the opening Segment of the later Clip. The close of a Clip always sends a Segment, an empty one (`[]`) when nothing changed, so the range reaches the close time. A page unload sends nothing, so the last seconds before an unload can be missing. Order the events by their timestamps. The index is the send order: it joins the pieces of one event and shows gaps, and a Clip from the buffer can send older events after newer ones. A gap in the index is a request that was lost or dropped at page exit. `clearIdentity()` ends the Stream and starts a new one: a new `everr.recording.stream.id`, index 0, a full snapshot, and the Session of its first Clip. A Clip that was open at the call sends nothing more.
+
+| Attribute                       | Meaning                                                                                                                                                                                                                 |
+| ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `everr.recording.stream.id`     | Random id per Stream; on every record of the page while it buffers                                                                                                                                                      |
+| `everr.recording.segment.index` | Int from 0 per Stream                                                                                                                                                                                                   |
+| `everr.recording.segment.end`   | Unix milliseconds when the Segment was built: every event of the Stream from `everr.recording.clip.start` up to that time is in a Segment with this index or a lower one                                                |
+| `everr.recording.clip.start`    | Unix milliseconds of the start of the run of overlapping Clips: the earliest start of the Clips opened since no Clip was last open. It moves earlier when a later Clip of the run reaches further back, and never later |
+| `session.id`                    | The Session at page load, or of the Stream's first Clip, not a fresh read                                                                                                                                               |
+
+Each Clip opens with exactly one Segment, the first one built after it opened. A Clip that starts at the call takes a full snapshot first, so its opening Segment leaves at the call. When nothing is unsent, the opening Segment has the body `[]` and the time of the call. Two Clips never share an opening Segment. It carries three more attributes:
+
+| Attribute                        | Meaning                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `everr.recording.clip.id`        | Random id of the Clip                                                   |
+| `everr.recording.trigger`        | `error`, `network` for a 5xx or a request with no response, or `manual` |
+| `everr.recording.clip.truncated` | `true` only when the buffer did not reach back to the requested start   |
+
+An event larger than one Segment, in practice a full snapshot with big text or inline images, goes in pieces: consecutive Segments whose `Body` is a slice of that one event's JSON text, not an array. Each piece is cut between characters and holds at most 950 KB of UTF-8, and it carries three more attributes:
+
+| Attribute                      | Meaning                                                        |
+| ------------------------------ | -------------------------------------------------------------- |
+| `everr.recording.event.index`  | The `everr.recording.segment.index` of the event's first piece |
+| `everr.recording.event.piece`  | Int from 0: the place of this piece in the event               |
+| `everr.recording.event.pieces` | The count of pieces of the event                               |
+
+To reassemble a recording, read the Segments of its Stream with the `everr.recording.clip.start` of its run, in `everr.recording.segment.index` order, up to the time you want to play. The `everr.recording.segment.end` of a Segment tells you that every event from the start of the run up to that time is in a Segment with its index or a lower one. Parse a Segment without `everr.recording.event.pieces` (an empty `pieces` in the query below) as an array of events. For pieces, join the bodies with the same `everr.recording.event.index` in `everr.recording.event.piece` order, then parse the joined text as one event in that place. An event with a missing piece is lost; skip it.
+
+Segments carry the rest of the context envelope, but no `TraceId` or `SpanId`: join a Clip to other signals by `session.id`, `everr.recording.stream.id`, and time. Inside the body, rrweb custom events (type 5) mark gaps in the recording by `data.tag`:
+
+| Tag                      | Meaning                                                                        |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `everr.recording.pause`  | The app called `recorder.pause()`; nothing is recorded until the resume marker |
+| `everr.recording.resume` | The app called `recorder.resume()`; a full snapshot follows                    |
+
 ## Spans (in `traces`)
 
 | SpanName                                           | Meaning                                                                                                                                                                                                                                                                                                                              | Key attributes                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -109,6 +146,36 @@ WHERE Timestamp > now() - INTERVAL 24 HOUR
 GROUP BY route
 ORDER BY errors DESC
 LIMIT 20
+```
+
+Recordings of the last day with what opened them; play one by reading the Segments of its Stream with its `clip_start_ms`, in index order:
+
+```sql
+SELECT Timestamp,
+  toString(LogAttributes.`everr.recording.clip.id`) AS clip_id,
+  toString(LogAttributes.`everr.recording.trigger`) AS trigger,
+  toString(LogAttributes.`everr.recording.stream.id`) AS stream_id,
+  toInt64OrZero(toString(LogAttributes.`everr.recording.clip.start`)) AS clip_start_ms,
+  toString(LogAttributes.`session.id`) AS session_id
+FROM logs
+WHERE Timestamp > now() - INTERVAL 24 HOUR
+  AND EventName = 'everr.browser.recording.segment'
+  AND toString(LogAttributes.`everr.recording.clip.id`) != ''
+ORDER BY Timestamp DESC
+LIMIT 20
+```
+
+```sql
+SELECT toUInt32OrZero(toString(LogAttributes.`everr.recording.segment.index`)) AS segment,
+  toString(LogAttributes.`everr.recording.event.index`) AS event_index,
+  toString(LogAttributes.`everr.recording.event.piece`) AS piece,
+  toString(LogAttributes.`everr.recording.event.pieces`) AS pieces,
+  Body
+FROM logs
+WHERE EventName = 'everr.browser.recording.segment'
+  AND toString(LogAttributes.`everr.recording.stream.id`) = '<stream-id>'
+  AND toInt64OrZero(toString(LogAttributes.`everr.recording.clip.start`)) = <clip_start_ms>
+ORDER BY segment
 ```
 
 What one user session did, in order (events and requests interleaved):

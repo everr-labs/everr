@@ -138,12 +138,24 @@ let user: Record<string, AttrValue> = {};
 export const userAttributes = (): Record<string, AttrValue> | undefined =>
   anonymized ? undefined : user;
 
+// The recording instrumentation ends its Stream when the ids are forgotten, at
+// clearIdentity() and at setAnonymized(true). Thus no recording connects the
+// ids before the call to the ids after it. One recorder operates for each page,
+// and thus one listener is sufficient.
+let cleared: (() => void) | undefined;
+
+/** @internal For `@everr/otel-web/recording`. */
+export function onClearIdentity(listener: (() => void) | undefined): void {
+  cleared = listener;
+}
+
 // The code forgets the ids in memory, and it removes the stored ids when the
 // mode is not anonymized. The next record then gets a new session id.
 function forgetIds(): void {
   if (!anonymized) removeIdentity();
   visitor = undefined;
   session = null;
+  cleared?.();
 }
 
 /**
@@ -162,7 +174,7 @@ function forgetIds(): void {
  * starts later carries an identity. A `send` function from the host gets the
  * payload during this call, and the host decides when the payload goes. Then
  * the code removes the stored ids and forgets the visitor id. It also drops the
- * session.
+ * session, and the `recording()` instrumentation ends its Stream.
  * The old session id would join the new records to the visitor and the user on
  * the earlier records. The next record gets a new session id. The code keeps
  * the identified user in memory, but it does not send it.
@@ -207,7 +219,8 @@ export function identify(userId: string, traits?: UserTraits): void {
 /**
  * Forgets the identified user, the visitor id, and the session, and it removes
  * the stored ids when the mode is not anonymized. It never changes the mode.
- * Call it when the user logs out. The subsequent records carry new ids.
+ * Call it when the user logs out. The subsequent records carry new ids. The
+ * `recording()` instrumentation ends its Stream and starts a new one.
  */
 export function clearIdentity(): void {
   user = {};

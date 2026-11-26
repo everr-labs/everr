@@ -77,6 +77,29 @@ module.exports = [
     import: "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     // Includes XHR lifecycle tracking alongside fetch.
-    limit: "10 KB",
+    // Raised for the recorder seams in the pipeline and the input page on INP.
+    limit: "10.5 KB",
+  },
+  {
+    // The stub only. The main entry and the recorder chunk load on their own.
+    name: "recording stub",
+    path: "dist/recording.js",
+    import: "{ recording, recorder }",
+    gzip: true,
+    ignore: ["@everr/otel-web"],
+    modifyEsbuildConfig: (config) => ({
+      ...config,
+      external: [...(config.external ?? []), "./recording/recorder.js"],
+    }),
+    limit: "1.05 KB",
+  },
+  {
+    // rrweb record is most of it.
+    name: "recording chunk",
+    path: "dist/recording/recorder.js",
+    import: "{ startStream }",
+    gzip: true,
+    ignore: ["@everr/otel-web"],
+    limit: "26.6 KB",
   },
 ];
