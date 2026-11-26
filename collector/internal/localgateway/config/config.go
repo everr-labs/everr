@@ -59,6 +59,22 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 				},
 			},
 		},
+		"connectors": map[string]any{
+			// Segments are close to 1 MB, so they go to app.recordings, as on a
+			// server installation, and not to the logs table. Move, not copy:
+			// error_mode propagate fails the batch on a broken condition
+			// instead of sliding Segments into the logs table.
+			"routing": map[string]any{
+				"default_pipelines": []any{"logs/telemetry"},
+				"error_mode":        "propagate",
+				"table": []any{
+					map[string]any{
+						"condition": `log.event_name == "everr.browser.recording.segment"`,
+						"pipelines": []any{"logs/recordings"},
+					},
+				},
+			},
+		},
 		"exporters": map[string]any{
 			"chdb": map[string]any{
 				// Every insert creates a part that background merges rewrite,
@@ -71,6 +87,25 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 				},
 				"retention_days": cfg.RetentionDays,
 			},
+			"chdb/recordings": map[string]any{
+				// One request is one Segment of about 1 MB, held in memory, so
+				// the queue counts requests and stays small: the default of 1000
+				// could hold 1 GB and outlast the CLI's 3s pipelineStopTimeout.
+				// A full queue refuses the Segment and the browser sends it
+				// again. The batch is the server collector's.
+				"sending_queue": map[string]any{
+					"sizer":      "requests",
+					"queue_size": 32,
+					"batch": map[string]any{
+						"sizer":         "items",
+						"flush_timeout": "1s",
+						"min_size":      16,
+						"max_size":      16,
+					},
+				},
+				"retention_days": cfg.RetentionDays,
+				"recordings":     true,
+			},
 		},
 		"service": map[string]any{
 			"pipelines": map[string]any{
@@ -80,7 +115,15 @@ func BuildCollectorConfigMap(cfg CollectorConfig) map[string]any {
 				},
 				"logs": map[string]any{
 					"receivers": []any{"otlp"},
+					"exporters": []any{"routing"},
+				},
+				"logs/telemetry": map[string]any{
+					"receivers": []any{"routing"},
 					"exporters": []any{"chdb"},
+				},
+				"logs/recordings": map[string]any{
+					"receivers": []any{"routing"},
+					"exporters": []any{"chdb/recordings"},
 				},
 				"metrics": map[string]any{
 					"receivers": []any{"otlp"},

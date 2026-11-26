@@ -2,13 +2,14 @@
 
 Writes OTLP logs, traces, metrics and profiles into the local Everr store, the chDB that `everr local start` embeds. It has no other use.
 
-The exporter creates no table. `collector/localcollector` builds the store from the migrations in `collector/localcollector/migrations` and hands the exporter its chDB handle through `NewFactory`. Each push is one `INSERT ... FORMAT JSONEachRow` per landing table: `otel.otel_logs`, `otel.otel_traces`, the five `otel.otel_metrics_*` tables and `otel.otel_profiles`. The views from the migrations copy the rows into `app.*`, where queries read them.
+The exporter creates no table. `collector/localcollector` builds the store from the migrations in `collector/localcollector/migrations` and hands the exporter its chDB handle through `NewFactory`. Each push is one `INSERT ... FORMAT JSONEachRow` per landing table: `otel.otel_logs`, `otel.otel_traces`, the five `otel.otel_metrics_*` tables and `otel.otel_profiles`. The views from the migrations copy the rows into `app.*`, where queries read them. An exporter with `recordings: true` writes its logs into `app.recordings` instead, with no view in between.
 
 The table names and their columns live in `internal/landing`. A test in `collector/localcollector` compares them with the migrated tables.
 
 ## Configuration
 
 - `retention_days` (required): the number of days the store keeps a row. The exporter writes it on every resource as `everr.retention.days` and replaces a value the client sent.
+- `recordings` (default false): write logs into `app.recordings`, the table of browser recording Segments, instead of `otel.otel_logs`. The local gateway routes Segments to an exporter that sets it.
 - `timeout`, `retry_on_failure`, `sending_queue`: the standard exporter settings.
 
 ## Provenance

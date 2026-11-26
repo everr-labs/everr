@@ -17,10 +17,11 @@ import (
 type logsExporter struct {
 	handle        *chdb.Handle
 	retentionDays string
+	table         landing.Table
 }
 
 func (e *logsExporter) pushLogsData(ctx context.Context, ld plog.Logs) error {
-	batch := landing.NewBatch(landing.Logs)
+	batch := landing.NewBatch(e.table)
 
 	rsLogs := ld.ResourceLogs()
 	rsLen := rsLogs.Len()

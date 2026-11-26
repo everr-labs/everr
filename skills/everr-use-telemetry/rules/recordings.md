@@ -102,7 +102,7 @@ LIMIT 30
 
 A Clip starts at the last full snapshot before what opened it, which can be hours earlier: for one moment you already know, pass it to `show --at` instead. `end_ms` is the last Segment sent. A page unload sends nothing, so it can be seconds before the page went away. A Clip that opens inside a run and reaches back further than the run so far gives a second row for the Stream, and the rows overlap. A run whose opening Segment is gone is not listed. Clip counts are not a rate, since Clips exist only where the app's triggers fired.
 
-`recordings` has one row per Segment. `Body` is not readable through SQL (`length(Body)` is), so `SELECT *` and `DESCRIBE TABLE recordings` are refused: name the columns, or use `SELECT * EXCEPT (Body)`. Bound `Timestamp`, since the table is sorted by its hour.
+`recordings` has one row per Segment. On a remote installation `Body` is not readable through SQL (`length(Body)` is), so `SELECT *` and `DESCRIBE TABLE recordings` are refused: name the columns, or use `SELECT * EXCEPT (Body)`. Locally both work, but select `length(Body)`, never `Body`. Bound `Timestamp`, since the table is sorted by its hour.
 
 ## Population Queries
 
@@ -192,7 +192,7 @@ Page text can hold personal data the app did not mask. In reports, tickets, and 
 
 ## Local
 
-`show` reads the remote installation you logged in to with `everr cloud login`, Everr Cloud or a self-hosted one, and never the local collector. Locally, the timeline and the population queries work unchanged on `everr local query`. Find Clips does not: the local store keeps Segments as `logs` rows of up to 950 KB, so select `length(Body)` of a Segment, never its `Body`.
+`show` reads the remote installation you logged in to with `everr cloud login`, Everr Cloud or a self-hosted one, and never the local collector. The local store keeps Segments in its own `recordings` table, so the timeline, Find Clips, and the population queries work unchanged on `everr local query`. Do not select `Body` there: it is raw rrweb, up to 950 KB a row. Select `length(Body)`.
 
 ## Errors
 
