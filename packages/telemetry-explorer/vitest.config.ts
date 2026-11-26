@@ -1,5 +1,7 @@
 import path from "node:path";
 import { tanstackRouterGenerator } from "@tanstack/router-plugin/vite";
+import babel from "@rolldown/plugin-babel";
+import { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig, lazyPlugins } from "vite-plus";
 
 export default defineConfig({
@@ -11,6 +13,8 @@ export default defineConfig({
   // Writes src/contract/routeTree.gen.ts from src/contract/routes, so a test
   // run is what regenerates the tree after a contract route changes.
   plugins: lazyPlugins(() => [
+    // Tests run the components as the app builds them.
+    babel({ presets: [reactCompilerPreset()] }),
     tanstackRouterGenerator({
       target: "react",
       routesDirectory: "./src/contract/routes",

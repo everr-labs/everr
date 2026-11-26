@@ -147,8 +147,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@babel/core": "catalog:",
     "@electric-sql/pglite": "^0.5.4",
     "@react-email/ui": "^6.11.0",
+    "@rolldown/plugin-babel": "catalog:",
     "@tanstack/devtools-vite": "^0.8.5",
     "@tanstack/react-devtools": "^0.10.13",
     "@tanstack/react-form-devtools": "^0.2.34",
@@ -166,6 +168,7 @@
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",
     "@vitejs/plugin-react": "catalog:",
+    "babel-plugin-react-compiler": "catalog:",
     "chdb": "^3.3.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",

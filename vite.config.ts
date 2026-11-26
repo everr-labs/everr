@@ -56,10 +56,13 @@ export default defineConfig({
       { name: "tailwind", specifier: "./oxlint.tailwind.mts" },
     ],
     rules: {
-      // Ref access, purity, and immutability diagnostics still need separate review.
+      // Ref access and immutability diagnostics still need separate review. The
+      // React Compiler skips the components these flag rather than miscompile them.
       "react/refs": "off",
       "react/immutability": "off",
-      "react/purity": "off",
+      // The React Compiler can keep an impure read, such as `Date.now()`, from
+      // the first render. Read the clock with `useNow`, or in an event handler.
+      "react/purity": "error",
       "react/set-state-in-effect": "error",
       // These APIs call render callbacks directly; they do not mount them as
       // component types. Keep component slots such as Virtuoso's Footer checked.

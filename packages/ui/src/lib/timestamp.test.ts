@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { describe, expect, it } from "vite-plus/test";
 import {
   formatRelativeTime,
   formatTimestampTimeOfDay,
@@ -52,7 +52,7 @@ describe("formatTimestampTimeOfDay", () => {
 
 describe("formatRelativeTime", () => {
   it("returns a placeholder for invalid timestamps", () => {
-    expect(formatRelativeTime("not-a-date")).toBe("—");
+    expect(formatRelativeTime("not-a-date", Date.now())).toBe("—");
   });
 
   it.each([
@@ -63,10 +63,7 @@ describe("formatRelativeTime", () => {
     ["2026-03-07T16:32:00Z", "3h ago"],
     ["2026-03-10T13:32:00Z", "3d ago"],
   ])("at %s renders 2026-03-07T13:32:00Z as %s", (now, expected) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(now));
-    expect(formatRelativeTime("2026-03-07T13:32:00Z")).toBe(expected);
-    vi.useRealTimers();
+    expect(formatRelativeTime("2026-03-07T13:32:00Z", Date.parse(now))).toBe(expected);
   });
 });
 

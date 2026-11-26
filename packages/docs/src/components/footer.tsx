@@ -102,6 +102,7 @@ function FooterDirectory() {
             </p>
           </div>
           <p className="mt-4 flex items-center justify-center gap-3 text-sm text-fd-muted-foreground sm:justify-start">
+            {/* oxlint-disable-next-line react/purity -- The docs site isn't compiled by the React Compiler, and the year only has to be right when the page renders. */}
             &copy; {new Date().getFullYear()} Everr
             <LanguageMenu
               side="top"

@@ -1,4 +1,6 @@
 import path from "node:path";
+import babel from "@rolldown/plugin-babel";
+import { reactCompilerPreset } from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -7,6 +9,8 @@ export default defineConfig({
     // name, the same way its consumers do.
     alias: { "@everr/ui": path.resolve(__dirname, "./src") },
   },
+  // Tests run the components as the app builds them.
+  plugins: [babel({ presets: [reactCompilerPreset()] })],
   test: {
     // Vitest v4 compatibility: preserve mock call history.
     // Remove after tests no longer rely on calls from setup or earlier tests.

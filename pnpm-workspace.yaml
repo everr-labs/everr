@@ -5,6 +5,11 @@ packages:
   - ".github/actions/everr-action"
 
 catalog:
+  # The React Compiler runs as a Babel pass. Babel 7: compiler 1.0 misreads
+  # Babel 8's syntax tree and rejects components it can compile.
+  "@babel/core": ^7.29.0
+  "@rolldown/plugin-babel": ^0.2.4
+  babel-plugin-react-compiler: ^1.0.0
   "@icons-pack/react-simple-icons": ^13.13.0
   "@t3-oss/env-core": ^0.13.11
   "@tailwindcss/vite": ^4.3.0

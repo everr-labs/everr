@@ -5,6 +5,7 @@ import { notifyManager, useQueryClient } from "@tanstack/react-query";
 import { type KeyboardEvent, useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { flushSync } from "react-dom";
 import { useIsMobile } from "../hooks/use-mobile";
+import { useNow } from "../hooks/use-now";
 import { DEFAULT_TIME_RANGE, isEmptyTimeRange, type TimeRange } from "../lib/time-range";
 import { cn } from "../lib/utils";
 import { Button } from "./button";
@@ -190,6 +191,8 @@ export function TimeRangePicker({
   // the ranges want finger-sized rows. `false` on the server, so the popover
   // is what renders before hydration; the trigger looks the same either way.
   const isMobile = useIsMobile();
+  // The calendar's last pickable day, moving on past midnight while it's open.
+  const today = new Date(useNow());
   // A relative range can end before it starts at some times of day, as
   // "now/d" to "now-5h" does before 05:00; pages then show nothing, and the
   // trigger says why. Only the viewer's clock knows, so the server says no.
@@ -211,6 +214,15 @@ export function TimeRangePicker({
     () => isEmptyTimeRange(value),
     () => false,
   );
+  // The endpoints the trigger's tooltip shows, read at the same moments as
+  // `empty` so the two agree. Resolving them in render would read the clock
+  // only when the range changes, as the compiled component keeps the labels.
+  const [previewFrom, previewTo] = useSyncExternalStore(
+    onFetch,
+    () =>
+      `${resolvePreview(value.from, false)?.label ?? ""}\u0000${resolvePreview(value.to, true)?.label ?? ""}`,
+    () => "\u0000",
+  ).split("\u0000");
   const [open, setOpen] = useState(false);
   const [customFrom, setCustomFrom] = useState(() => toEditable(value.from));
   const [customTo, setCustomTo] = useState(() => toEditable(value.to));
@@ -248,10 +260,7 @@ export function TimeRangePicker({
   }, [customFrom, customTo]);
 
   // Resolved on every render, with the range check: "now" moves.
-  const currentRangePreview = {
-    from: resolvePreview(value.from, false)?.label ?? null,
-    to: resolvePreview(value.to, true)?.label ?? null,
-  };
+  const currentRangePreview = { from: previewFrom || null, to: previewTo || null };
 
   const handlePresetClick = (from: string, to: string) => {
     onChange({ from, to });
@@ -395,8 +404,8 @@ export function TimeRangePicker({
       // Six rows in every month, so paging months never resizes the popover.
       fixedWeeks
       // Nothing to see in the future: telemetry stops at now.
-      disabled={{ after: new Date() }}
-      endMonth={new Date()}
+      disabled={{ after: today }}
+      endMonth={today}
       onDayMouseEnter={(day) => setHoverDay(day)}
       modifiers={{
         preview,

@@ -8,11 +8,8 @@ import {
 import { raggedWidth, Skeleton, SkeletonLine } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import {
-  formatRelativeTime,
-  formatRowTimestamp,
-  parseTimestampAsUTC,
-} from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
+import { formatRowTimestamp, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy } from "lucide-react";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
@@ -233,7 +230,9 @@ function TraceRow({
           {started ? (
             <span className="flex flex-col gap-0.5">
               <span className="tabular-nums">{started.toLocaleString()}</span>
-              <span className="text-background/70">{formatRelativeTime(row.startTs)}</span>
+              <span className="text-background/70">
+                <RelativeTime timestamp={row.startTs} />
+              </span>
             </span>
           ) : (
             row.startTs

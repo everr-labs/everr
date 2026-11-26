@@ -9,7 +9,7 @@ import {
 } from "@everr/ui/components/detail-panel";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { cn } from "@everr/ui/lib/utils";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import AnsiImport from "ansi-to-react";
@@ -171,7 +171,9 @@ export function LogInspectorPanel({
         <div className="mb-2 flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="text-sm font-medium">Log event</div>
-            <div className="text-muted-foreground text-xs">{formatRelativeTime(log.timestamp)}</div>
+            <div className="text-muted-foreground text-xs">
+              <RelativeTime timestamp={log.timestamp} />
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <Badge variant="outline" className={cn("capitalize", levelBadgeClassName(log.level))}>
