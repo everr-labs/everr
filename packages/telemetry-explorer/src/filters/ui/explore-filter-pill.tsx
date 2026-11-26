@@ -13,6 +13,7 @@ import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
 import { type ComponentType, useId, useState } from "react";
+import { usePrefetchOnIntent } from "./use-prefetch-on-intent";
 
 interface FilterQueryOptions<TData> {
   queryKey: QueryKey;
@@ -72,6 +73,7 @@ export function ExploreFilterPill<TData>({
     ...options,
     enabled: open,
   });
+  const prefetchProps = usePrefetchOnIntent(options);
 
   const count = values.length;
   const isActive = count > 0;
@@ -98,6 +100,7 @@ export function ExploreFilterPill<TData>({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
+        {...prefetchProps}
         render={
           <Button
             id={id}

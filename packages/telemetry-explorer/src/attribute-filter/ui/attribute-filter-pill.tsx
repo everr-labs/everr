@@ -13,6 +13,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useFilterOptionsCache } from "../../filters/data/filter-options-cache";
+import { usePrefetchOnIntent } from "../../filters/ui/use-prefetch-on-intent";
 import { attributeValuesOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter, AttributeOp } from "../schemas";
@@ -182,11 +183,23 @@ export function AttributeFilterPill({
   const name = attributeLabel(filter.key) ?? filter.key;
   const connector = ATTRIBUTE_OP_CONNECTORS[filter.op];
   const summary = opTakesValues(filter.op) ? valueSummary(filter.values) : null;
+  const cache = useFilterOptionsCache();
+  const prefetchProps = usePrefetchOnIntent(
+    opTakesValues(filter.op)
+      ? attributeValuesOptions(
+          repo,
+          { timeRange, source: filter.source, key: filter.key },
+          { domain },
+          cache,
+        )
+      : undefined,
+  );
 
   return (
     <div className="bg-background ring-offset-background focus-within:border-ring focus-within:ring-primary flex w-full items-stretch overflow-hidden rounded-md border text-xs focus-within:ring-2 focus-within:ring-offset-[3px]">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger
+          {...prefetchProps}
           render={
             // oxlint-disable-next-line jsx-a11y/control-has-associated-label -- PopoverTrigger supplies the existing visible children through render; keep its accessible name unchanged.
             <button
