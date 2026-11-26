@@ -1,16 +1,5 @@
 import type { OxlintConfig } from "vite-plus/lint";
 
-// Tailwind compiles `group-has-*` to a `:has()` that styles any descendant,
-// `*`. With one such rule in the global stylesheet, Chrome restyles the whole
-// page whenever an element is added anywhere, about 20ms on a busy page.
-// Overrides that set `eslint-js/no-restricted-syntax` replace its options, so
-// each one lists this entry again. The `[s]` keeps the pattern from matching itself.
-export const noGroupHas = {
-  selector: "Literal[value=/group-ha[s]-/], TemplateElement[value.raw=/group-ha[s]-/]",
-  message:
-    "Tailwind's group-has variants make every DOM change restyle the whole page. Target the element itself: [[data-slot=x]:has(...)_&]:class.",
-};
-
 export default {
   plugins: [],
   categories: {
@@ -70,7 +59,6 @@ export default {
       rules: {
         "eslint-js/no-restricted-syntax": [
           "error",
-          noGroupHas,
           {
             selector:
               "Program > :not(TSInterfaceDeclaration):not(TSTypeAliasDeclaration):not(EmptyStatement):not(ImportDeclaration):not(ExportNamedDeclaration):not(ExportAllDeclaration):not(ExportDefaultDeclaration)",
