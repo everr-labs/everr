@@ -12,6 +12,30 @@ describe("sanitizeSqlApiError", () => {
     expect(sanitizeSqlApiError(e)).toBe(SCHEMA_PROBE_MESSAGE);
   });
 
+  it("names the withheld column when a table with one refuses the query", () => {
+    for (const message of [
+      "Not enough privileges. To execute this query, it's necessary to have the grant SELECT ON app.recordings. (ACCESS_DENIED)",
+      "necessary to have the grant SELECT(Body) ON app.recordings",
+      "necessary to have the grant SHOW COLUMNS ON app.recordings",
+    ]) {
+      expect(
+        sanitizeSqlApiError(new ClickHouseError({ message, code: "497", type: "ACCESS_DENIED" })),
+      ).toBe(
+        "recordings: column Body is not readable, and SELECT * and DESCRIBE are refused. " +
+          "Name the columns or use SELECT * EXCEPT (Body). length(Body) works.",
+      );
+    }
+  });
+
+  it("keeps the uniform message for another table whose name starts the same", () => {
+    const e = new ClickHouseError({
+      message: "necessary to have the grant SELECT ON app.recordings_raw",
+      code: "497",
+      type: "ACCESS_DENIED",
+    });
+    expect(sanitizeSqlApiError(e)).toBe(SCHEMA_PROBE_MESSAGE);
+  });
+
   it("collapses UNKNOWN_TABLE into the uniform message", () => {
     const e = new ClickHouseError({
       message: "Table app.x doesn't exist",

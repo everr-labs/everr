@@ -122,6 +122,7 @@ describe("provisionSqlApiOrgUser", () => {
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_traces_trace_id_ts\` ON app.\`traces_trace_id_ts\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
       `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_profiles\` ON app.\`profiles\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
+      `CREATE ROW POLICY IF NOT EXISTS \`${ORG_USER}_recordings\` ON app.\`recordings\` FOR SELECT USING tenant_id = '${ORG}' TO \`${ORG_USER}\``,
     ]);
 
     const setRoleCall = mockCommand.mock.calls[1][0];
@@ -160,6 +161,7 @@ describe("deprovisionSqlApiOrgUser", () => {
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_alert_events\` ON app.\`alert_events\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_traces_trace_id_ts\` ON app.\`traces_trace_id_ts\``,
       `DROP ROW POLICY IF EXISTS \`${ORG_USER}_profiles\` ON app.\`profiles\``,
+      `DROP ROW POLICY IF EXISTS \`${ORG_USER}_recordings\` ON app.\`recordings\``,
       `DROP USER IF EXISTS \`${ORG_USER}\``,
     ]);
   });

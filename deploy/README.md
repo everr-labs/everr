@@ -48,8 +48,9 @@ app then connects as `default` and applies its PostgreSQL and ClickHouse
 migrations: the table definitions, the grants for those users, and SQL query
 limits from `packages/app/clickhouse` and its `self-hosted` directory, without
 tenant policies or per-organization provisioning privileges.
-An upgrade needs the release's `compose.yaml` and `clickhouse-init.sh` as well as
-its app and collector images, both at the same version. See Versions below.
+An upgrade needs the release's `compose.yaml`, `clickhouse-init.sh` and
+`collector.yaml` as well as its app and collector images, both at the same
+version. See Versions below.
 The collector starts after the app is healthy, because it reads the landing table
 columns when it starts. Run the app and collector images at the same version.
 Self-hosted telemetry does not stamp a tenant, and queries do not filter by tenant.
@@ -101,6 +102,12 @@ need a public ingest key with their origin allowed. Send a request through your
 application and check its service in Everr's traces, logs, or metrics explorer.
 The collector rejects unauthenticated ingestion and derives workspace and
 retention from the verified key. It keeps queued telemetry on a persistent volume.
+
+Browser session recordings from `@everr/otel-web` are stored in ClickHouse's
+`app.recordings` table, which the app creates on startup. They are kept apart
+from logs, and the SQL API reads every column except `Body`. They follow the logs retention
+window and queue under `recordings/` on the collector volume. Recordings sent
+before the table existed stay in the logs.
 
 The SQL API uses one restricted ClickHouse user, `sql_api`. Its password is
 generated in `.env` as `CLICKHOUSE_SQL_API_PASSWORD`. GitHub webhook ingestion is not configured by this
@@ -173,8 +180,13 @@ EVERR_VERSION=0.10.2
 ```
 
 `EVERR_VERSION` sets both images, so the app and collector stay at the same
-version. To upgrade, update this checkout to the release, so `compose.yaml` and
-`clickhouse-init.sh` match its images, then run:
+version. The collector reads `collector.yaml` from this directory, not from the
+image. The release that added session recordings also added the `routing`
+connector to the file. With an older `collector.yaml`, recording Segments stay in
+`logs`, where the SQL API can read them. With an older collector image, the
+collector fails at startup with an unknown component `routing`. To upgrade,
+update this checkout to the release, so `compose.yaml`, `clickhouse-init.sh` and
+`collector.yaml` match its images, then run:
 
 ```sh
 git pull
