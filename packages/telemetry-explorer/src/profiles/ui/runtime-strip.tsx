@@ -117,7 +117,7 @@ export function RuntimeStrip({
   return (
     <section
       aria-label="Node.js runtime"
-      className="grid grid-cols-1 gap-x-4 gap-y-2 border-b px-3 py-2 md:grid-cols-2"
+      className="grid grid-cols-1 gap-x-4 gap-y-4 border-b px-3 py-2 md:grid-cols-2 md:gap-y-2"
     >
       {data.hasEventLoopDelay ? (
         <RuntimeChart

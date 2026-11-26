@@ -48,10 +48,12 @@ function TabsList({
         // variables. Moving it with `translate` keeps the glide on the
         // compositor. The first placement has no previous tab to come from,
         // so `data-[activation-direction=none]` skips the transition.
+        // A horizontal line sits on the list's bottom edge, inside its box:
+        // below it, the content under the tabs would paint over it.
         className={cn(
           "pointer-events-none absolute top-0 left-0 translate-x-(--active-tab-left) translate-y-(--active-tab-top) transition-[translate,width,height] duration-250 ease-(--ease-out) data-[activation-direction=none]:transition-none motion-reduce:transition-none",
           variant === "line"
-            ? "group-data-[orientation=horizontal]/tabs:mt-[calc(var(--active-tab-height)+4px)] group-data-[orientation=horizontal]/tabs:h-0.5 group-data-[orientation=horizontal]/tabs:w-(--active-tab-width) group-data-[orientation=vertical]/tabs:ml-[calc(var(--active-tab-width)+3px)] group-data-[orientation=vertical]/tabs:h-(--active-tab-height) group-data-[orientation=vertical]/tabs:w-0.5 bg-foreground rounded-full"
+            ? "group-data-[orientation=horizontal]/tabs:top-auto group-data-[orientation=horizontal]/tabs:bottom-0 group-data-[orientation=horizontal]/tabs:translate-y-0 group-data-[orientation=horizontal]/tabs:h-0.5 group-data-[orientation=horizontal]/tabs:w-(--active-tab-width) group-data-[orientation=vertical]/tabs:ml-[calc(var(--active-tab-width)+3px)] group-data-[orientation=vertical]/tabs:h-(--active-tab-height) group-data-[orientation=vertical]/tabs:w-0.5 bg-foreground rounded-full"
             : "h-(--active-tab-height) w-(--active-tab-width) rounded-md bg-white/[0.08]",
         )}
       />

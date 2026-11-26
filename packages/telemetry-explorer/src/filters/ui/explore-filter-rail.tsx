@@ -27,6 +27,7 @@ export function ExploreFilterRail({
   persistentFilterCount,
   pageFilterCount,
   onClear,
+  narrowToolbar,
   children,
 }: {
   label: string;
@@ -34,6 +35,8 @@ export function ExploreFilterRail({
   persistentFilterCount: number;
   pageFilterCount: number;
   onClear: () => void;
+  /** Page controls beside the Filters button in a narrow window, so its bar is not empty. */
+  narrowToolbar?: ReactNode;
   children: ReactNode;
 }) {
   // Below `lg` there is no space for a 260px rail next to the results.
@@ -56,12 +59,20 @@ export function ExploreFilterRail({
   const activeFilterCount = persistentFilterCount + pageFilterCount;
 
   return (
-    <div className="bg-pane flex items-center border-b px-3 py-2">
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
+    <div className="bg-pane flex items-center gap-3 border-b px-3 py-2">
+      {/* Finger-sized on touch screens, where this bar is the way into the filters. */}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="pointer-coarse:h-10 pointer-coarse:px-3 pointer-coarse:text-sm"
+        onClick={() => setOpen(true)}
+      >
         <ListFilter />
         Filters
         {activeFilterCount > 0 && <Badge variant="secondary">{activeFilterCount}</Badge>}
       </Button>
+      {narrowToolbar}
       <SideDrawer
         open={open}
         onOpenChange={setOpen}

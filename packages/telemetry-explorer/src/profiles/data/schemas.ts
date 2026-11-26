@@ -38,7 +38,7 @@ export const ProfilesSearchParamsSchema = TimeRangeSearchSchema.extend({
 });
 export type ProfilesSearchParams = z.infer<typeof ProfilesSearchParamsSchema>;
 
-/** Distinct stacks per flame graph. Enough detail for a readable graph, small enough to send. */
+/** Distinct stacks per flamegraph. Enough detail for a readable graph, small enough to send. */
 export const PROFILE_STACK_LIMIT = 5_000;
 
 /** Bars in the samples histogram, the same target as the logs volume. */
@@ -48,7 +48,7 @@ export const PROFILE_EXAMPLE_TRACE_LIMIT = 20;
 
 const AttributeFilterArraySchema = attributesField(PROFILES_ATTRIBUTE_SOURCES);
 
-// Every query on the page narrows by the same filters, so a flame graph, its
+// Every query on the page narrows by the same filters, so a flamegraph, its
 // sample types and its histogram always describe the same samples.
 const FilterShape = {
   timeRange: ExactTimeRangeSchema,

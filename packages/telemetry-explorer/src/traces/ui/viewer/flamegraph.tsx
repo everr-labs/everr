@@ -32,12 +32,14 @@ export function TimeRuler({ range, className }: { range: ViewRange; className?: 
     <div
       aria-hidden
       className={cn(
-        "text-muted-foreground flex h-7 shrink-0 justify-between border-b px-2 font-mono text-[10px]",
+        "@container text-muted-foreground flex h-7 shrink-0 justify-between border-b px-2 font-mono text-[10px]",
         className,
       )}
     >
+      {/* A narrow ruler, the waterfall's timeline on a phone, keeps the ends
+          and the middle, so the labels never run into each other. */}
       {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} className="pt-1.5">
+        <span key={i} className={cn("pt-1.5", i % 2 === 1 && "@max-[22rem]:hidden")}>
           {formatDuration(range.start + ((range.end - range.start) * i) / 4, "ms")}
         </span>
       ))}
@@ -62,6 +64,8 @@ export function TraceFlamegraph({
   renderHover,
   onHoverChange,
   renderContextMenu,
+  onTap,
+  onClick,
   ariaLabel = "Trace flamegraph. Select spans using the waterfall, or click a flamegraph bar. Pinch to zoom and drag to pan.",
   ref,
 }: {
@@ -85,6 +89,10 @@ export function TraceFlamegraph({
   onHoverChange?: (id: string | undefined) => void;
   /** Menu items for a right-clicked bar. Without it the browser's menu shows. */
   renderContextMenu?: (id: string) => ReactNode;
+  /** A finger tapped a bar; without it the bar's hover details stay up instead. */
+  onTap?: (id: string) => void;
+  /** A mouse click on a bar. With it, neither a click nor a tap selects the bar. */
+  onClick?: (id: string) => void;
   ariaLabel?: string;
   ref?: Ref<FlamegraphHandle>;
 }) {
@@ -99,16 +107,23 @@ export function TraceFlamegraph({
     range: ViewRange;
     moved: boolean;
   } | null>(null);
+  // The x of each pointer on the bars, and the two-finger zoom they started.
+  const pointersRef = useRef(new Map<number, number>());
+  const pinchRef = useRef<{ distance: number; mid: number; range: ViewRange } | null>(null);
   const [cursor, setCursor] = useState<{ x: number; width: number }>();
   const [hover, setHover] = useState<{
     span: SpanRect;
     event?: EventRect;
     x: number;
     y: number;
+    // Shown by a tap, since touch has no hover, until the next touch or scroll.
+    tapped?: boolean;
   }>();
-  // The bar a right-click landed on, kept while its menu is open.
+  // The bar a right-click or long-press landed on, kept while its menu is open.
   const [menuId, setMenuId] = useState<string>();
   const menuTargetRef = useRef<string | undefined>(undefined);
+  // A long-press opens the menu before the finger lifts; lifting must not also select.
+  const menuOpenedRef = useRef(false);
   const hoveredId = hover?.span.span.spanId;
   const changeHover = (next: typeof hover) => {
     setHover(next);
@@ -126,6 +141,17 @@ export function TraceFlamegraph({
       if (x >= s.x && x <= s.x + s.width && y >= s.y && y <= s.y + s.height) return s;
     }
     return undefined;
+  };
+  const hoverAt = (event: { clientX: number; clientY: number; currentTarget: Element }) => {
+    const span = barAt(event);
+    if (!span) return undefined;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const dot = eventRectsRef.current.find(
+      (e) => Math.abs(e.cx - x) <= e.halfSize + 2 && Math.abs(e.cy - y) <= e.halfSize + 2,
+    );
+    return { span, event: dot, x: Math.min(x + 12, rect.width - 260), y };
   };
   const drawFlamegraph = useFlamegraphDraw({
     canvasRef,
@@ -215,6 +241,19 @@ export function TraceFlamegraph({
     [model.durationMs, range, onRangeChange],
   );
 
+  // A tapped bar's details close on a touch anywhere else, as a tab switch.
+  const tapped = hover?.tapped === true;
+  useEffect(() => {
+    if (!tapped) return;
+    const dismiss = (event: PointerEvent) => {
+      if (event.target === canvasRef.current) return;
+      setHover(undefined);
+      onHoverChange?.(undefined);
+    };
+    document.addEventListener("pointerdown", dismiss);
+    return () => document.removeEventListener("pointerdown", dismiss);
+  }, [tapped, onHoverChange]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -238,7 +277,10 @@ export function TraceFlamegraph({
         viewportRef={containerRef}
         className="min-h-0 flex-1"
         viewportProps={{
-          onScroll: () => drawFlamegraph(),
+          onScroll: () => {
+            if (hover?.tapped) changeHover(undefined);
+            drawFlamegraph();
+          },
         }}
       >
         <BarsSurface
@@ -246,27 +288,75 @@ export function TraceFlamegraph({
           menu={renderContextMenu && menuId ? renderContextMenu(menuId) : undefined}
           menuEnabled={renderContextMenu !== undefined}
           onMenuOpenChange={(open) => {
-            // Only a right-click on a bar opens the menu; the empty area keeps none.
+            if (open) menuOpenedRef.current = true;
+            // Only a right-click or long-press on a bar opens the menu; the empty area keeps none.
             setMenuId(open ? menuTargetRef.current : undefined);
           }}
         >
           <canvas
             ref={canvasRef}
-            className="sticky top-0 block cursor-grab touch-none"
+            // Vertical swipes scroll the bars natively; horizontal drags and
+            // pinches reach the handlers below.
+            className="sticky top-0 block cursor-grab touch-pan-y"
             role="img"
             aria-label={ariaLabel}
             onPointerDown={(event) => {
               if (event.button !== 0) return;
               setCursor(undefined);
-              dragRef.current = { x: event.clientX, range, moved: false };
+              if (event.pointerType === "touch") changeHover(undefined);
+              // iOS fires no contextmenu event for a long-press, so the bar under
+              // the finger is the menu's target until a right-click says otherwise.
+              menuTargetRef.current = barAt(event)?.span.spanId;
+              menuOpenedRef.current = false;
+              const pointers = pointersRef.current;
+              pointers.set(event.pointerId, event.clientX);
+              if (pointers.size === 2) {
+                const [a = 0, b = 0] = pointers.values();
+                const rect = event.currentTarget.getBoundingClientRect();
+                pinchRef.current = {
+                  distance: Math.max(1, Math.abs(a - b)),
+                  mid: (a + b) / 2 - rect.left,
+                  range,
+                };
+                dragRef.current = null;
+              } else if (pointers.size === 1) {
+                dragRef.current = { x: event.clientX, range, moved: false };
+              }
               event.currentTarget.setPointerCapture(event.pointerId);
             }}
             onPointerMove={(event) => {
               const rect = event.currentTarget.getBoundingClientRect();
+              const pointers = pointersRef.current;
+              if (pointers.has(event.pointerId)) pointers.set(event.pointerId, event.clientX);
+              const pinch = pinchRef.current;
+              if (pinch) {
+                if (pointers.size < 2) return;
+                const [a = 0, b = 0] = pointers.values();
+                const full = model.durationMs;
+                const width = pinch.range.end - pinch.range.start;
+                const nextWidth = Math.min(
+                  full,
+                  Math.max(
+                    Math.min(full, 0.001),
+                    (width * pinch.distance) / Math.max(1, Math.abs(a - b)),
+                  ),
+                );
+                // The value under the fingers' midpoint stays under it as they move.
+                const anchor = pinch.range.start + (width * pinch.mid) / rect.width;
+                const mid = (a + b) / 2 - rect.left;
+                const start = Math.max(
+                  0,
+                  Math.min(full - nextWidth, anchor - (nextWidth * mid) / rect.width),
+                );
+                onRangeChange({ start, end: start + nextWidth });
+                return;
+              }
               const drag = dragRef.current;
               if (drag) {
                 const delta = event.clientX - drag.x;
-                if (Math.abs(delta) > 3) drag.moved = true;
+                // A finger drifts sideways at the start of a vertical swipe, so
+                // touch needs a clearer drag before it pans.
+                if (Math.abs(delta) > (event.pointerType === "touch" ? 10 : 3)) drag.moved = true;
                 if (drag.moved) {
                   const width = drag.range.end - drag.range.start;
                   const start = Math.max(
@@ -281,43 +371,47 @@ export function TraceFlamegraph({
                 }
                 return;
               }
-              const x = event.clientX - rect.left;
-              const y = event.clientY - rect.top;
+              if (event.pointerType === "touch") return;
               setCursor({
-                x: Math.max(0, Math.min(rect.width, x)),
+                x: Math.max(0, Math.min(rect.width, event.clientX - rect.left)),
                 width: rect.width,
               });
-              const span = barAt(event);
-              const dot = eventRectsRef.current.find(
-                (e) => Math.abs(e.cx - x) <= e.halfSize + 2 && Math.abs(e.cy - y) <= e.halfSize + 2,
-              );
-              changeHover(
-                span
-                  ? {
-                      span,
-                      event: dot,
-                      x: Math.min(x + 12, rect.width - 260),
-                      y,
-                    }
-                  : undefined,
-              );
+              changeHover(hoverAt(event));
             }}
             onPointerUp={(event) => {
+              pointersRef.current.delete(event.pointerId);
+              event.currentTarget.releasePointerCapture(event.pointerId);
+              // A pinch ends when its last finger lifts, without selecting.
+              if (pinchRef.current) {
+                if (pointersRef.current.size === 0) pinchRef.current = null;
+                return;
+              }
               const moved = dragRef.current?.moved;
               dragRef.current = null;
-              event.currentTarget.releasePointerCapture(event.pointerId);
-              if (moved) return;
-              const hit = barAt(event);
-              if (hit) {
-                directSelectionRef.current =
-                  hit.span.spanId === selectedSpanId ? undefined : hit.span.spanId;
-                onSelect(hit.span.spanId);
+              if (moved || menuOpenedRef.current) return;
+              const hit = hoverAt(event);
+              if (!hit) return;
+              const id = hit.span.span.spanId;
+              if (!onClick) {
+                directSelectionRef.current = id === selectedSpanId ? undefined : id;
+                onSelect(id);
+              }
+              if (event.pointerType === "touch") {
+                if (onTap) onTap(id);
+                else changeHover({ ...hit, tapped: true });
+              } else if (onClick) {
+                onClick(id);
               }
             }}
-            onPointerCancel={() => {
+            onPointerCancel={(event) => {
+              // The browser took over, to scroll or for a long-press.
+              pointersRef.current.delete(event.pointerId);
+              if (pointersRef.current.size === 0) pinchRef.current = null;
               dragRef.current = null;
             }}
-            onPointerLeave={() => {
+            onPointerLeave={(event) => {
+              // A lifted finger leaves too; a tapped bar's details stay up.
+              if (event.pointerType === "touch") return;
               changeHover(undefined);
               setCursor(undefined);
             }}
@@ -325,7 +419,6 @@ export function TraceFlamegraph({
               menuTargetRef.current = barAt(event)?.span.spanId;
               changeHover(undefined);
             }}
-            onDoubleClick={() => onRangeChange({ start: 0, end: model.durationMs })}
           />
         </BarsSurface>
       </ScrollArea>
@@ -354,7 +447,11 @@ export function TraceFlamegraph({
           className="pointer-events-none absolute z-20 max-w-64 rounded-md border bg-popover p-3 text-xs text-popover-foreground shadow-md"
           style={{
             left: Math.max(8, hover.x),
-            top: Math.min(hover.y + 35, (containerRef.current?.clientHeight ?? 160) - 65),
+            // Never above the bars, over the controls, even while they measure 0 high.
+            top: Math.max(
+              0,
+              Math.min(hover.y + 35, (containerRef.current?.clientHeight ?? 160) - 65),
+            ),
           }}
         >
           {renderHover ? (

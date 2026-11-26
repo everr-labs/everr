@@ -22,6 +22,8 @@ import {
 } from "./constants";
 import type { EventRect, FlamegraphSpan, SpanRect } from "./types";
 
+const HOVER_LIGHTEN = "rgba(255, 255, 255, 0.25)";
+
 export function clamp(v: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, v));
 }
@@ -150,22 +152,23 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
   ctx.beginPath();
   ctx.roundRect(x, spanY, width, metrics.SPAN_BAR_HEIGHT, 2);
 
-  if (isSelectedOrHovered) {
+  if (isSelected) {
     // Selection uses the same background token as the surrounding UI.
     ctx.fillStyle = resolveThemeColor("var(--background)");
     ctx.fill();
-    if (isSelected) {
-      ctx.setLineDash(DASHED_BORDER_LINE_DASH);
-    }
+    ctx.setLineDash(DASHED_BORDER_LINE_DASH);
     ctx.strokeStyle = color;
-    ctx.lineWidth = isSelected ? 2 : 1;
+    ctx.lineWidth = 2;
     ctx.stroke();
-    if (isSelected) {
-      ctx.setLineDash([]);
-    }
+    ctx.setLineDash([]);
   } else {
     ctx.fillStyle = color;
     ctx.fill();
+    if (isHovered) {
+      // A hovered bar lights up in its own colour.
+      ctx.fillStyle = HOVER_LIGHTEN;
+      ctx.fill();
+    }
     // Subtle outline to match spec: 1px semi-transparent black border at rest
     ctx.strokeStyle = "rgba(0, 0, 0, 0.3)";
     ctx.lineWidth = 1;
@@ -235,7 +238,7 @@ export function drawSpanBar(args: DrawSpanBarArgs): void {
     y: spanY,
     width,
     color,
-    isSelectedOrHovered,
+    isSelected,
     spanBarHeight: metrics.SPAN_BAR_HEIGHT,
     formatValue,
   });
@@ -248,13 +251,13 @@ interface DrawSpanLabelArgs {
   y: number;
   width: number;
   color: string;
-  isSelectedOrHovered: boolean;
+  isSelected: boolean;
   spanBarHeight: number;
   formatValue: (durationNano: number) => string;
 }
 
 function drawSpanLabel(args: DrawSpanLabelArgs): void {
-  const { ctx, span, x, y, width, color, isSelectedOrHovered, spanBarHeight, formatValue } = args;
+  const { ctx, span, x, y, width, color, isSelected, spanBarHeight, formatValue } = args;
 
   if (width < MIN_WIDTH_FOR_NAME) {
     return;
@@ -270,7 +273,7 @@ function drawSpanLabel(args: DrawSpanLabelArgs): void {
   ctx.clip();
 
   ctx.font = LABEL_FONT;
-  ctx.fillStyle = isSelectedOrHovered ? color : spanTextColor(color, span.hasError);
+  ctx.fillStyle = isSelected ? color : spanTextColor(color, span.hasError);
   ctx.textBaseline = "middle";
 
   const textY = y + spanBarHeight / 2;

@@ -32,9 +32,11 @@ export function CompareMenu({
           value={value ?? "off"}
           onValueChange={(next) => onChange(BASELINES.find((baseline) => baseline === next))}
         >
-          <DropdownMenuRadioItem value="off">No comparison</DropdownMenuRadioItem>
+          <DropdownMenuRadioItem value="off" closeOnClick>
+            No comparison
+          </DropdownMenuRadioItem>
           {BASELINES.map((baseline) => (
-            <DropdownMenuRadioItem key={baseline} value={baseline}>
+            <DropdownMenuRadioItem key={baseline} value={baseline} closeOnClick>
               {BASELINE_LABELS[baseline]}
             </DropdownMenuRadioItem>
           ))}
@@ -77,6 +79,7 @@ export function VersionMenu({
               key={version.version}
               value={version.version}
               disabled={version.version === exclude}
+              closeOnClick
             >
               <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
                 <span className="truncate font-mono">{version.version}</span>
@@ -93,7 +96,7 @@ export function VersionMenu({
 }
 
 /**
- * What the flame graph is diffed against and the diff legend, or why there is
+ * What the flamegraph is diffed against and the diff legend, or why there is
  * no baseline yet.
  */
 export function CompareStatus({

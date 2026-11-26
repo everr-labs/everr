@@ -133,3 +133,121 @@ it("shows a time guide over empty canvas space and updates its time after zoom",
   fireEvent.pointerLeave(canvas);
   expect(guide()).toBeNull();
 });
+
+// jsdom has no PointerEvent; this one carries the fields the gestures read.
+class TouchPointerEvent extends MouseEvent {
+  pointerId: number;
+  pointerType: string;
+  constructor(type: string, init: MouseEventInit & { pointerId?: number; pointerType?: string }) {
+    super(type, init);
+    this.pointerId = init.pointerId ?? 1;
+    this.pointerType = init.pointerType ?? "touch";
+  }
+}
+
+function renderTouchFlamegraph(extra: Partial<Parameters<typeof TraceFlamegraph>[0]> = {}) {
+  vi.stubGlobal("PointerEvent", TouchPointerEvent);
+  mocks.rects = [
+    {
+      span: {
+        spanId: "tapped",
+        parentSpanId: "",
+        name: "tapped span",
+        timestamp: 0,
+        durationNano: 1000,
+        hasError: false,
+        resource: {},
+        attributes: {},
+        event: [],
+      },
+      x: 0,
+      y: 0,
+      width: 1000,
+      height: 24,
+      level: 0,
+    },
+  ];
+  const props = {
+    model: { durationMs: 1000 },
+    layout: computeVisualLayout([]),
+    matchingIds: new Set<string>(),
+    filterActive: false,
+    colorBy: "service.name",
+    colors: new Map(),
+    range: { start: 0, end: 1000 },
+    onRangeChange: vi.fn(),
+    onSelect: vi.fn(),
+    renderHover: (span: { name: string }) => `Details of ${span.name}`,
+    ...extra,
+  };
+  const view = render(<TraceFlamegraph {...props} />);
+  const canvas = view.getByRole("img");
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue({
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 1000,
+    bottom: 200,
+    width: 1000,
+    height: 200,
+    toJSON: () => ({}),
+  });
+  Object.defineProperty(canvas, "setPointerCapture", { value: vi.fn() });
+  Object.defineProperty(canvas, "releasePointerCapture", { value: vi.fn() });
+  return { view, canvas, props };
+}
+
+it("zooms with two fingers around their midpoint without selecting a bar", () => {
+  const { canvas, props } = renderTouchFlamegraph();
+  fireEvent.pointerDown(canvas, { pointerId: 1, clientX: 400, clientY: 10 });
+  fireEvent.pointerDown(canvas, { pointerId: 2, clientX: 600, clientY: 10 });
+  // The fingers spread to twice their distance, and their midpoint moves from 500 to 600.
+  fireEvent.pointerMove(canvas, { pointerId: 2, clientX: 800, clientY: 10 });
+  expect(props.onRangeChange).toHaveBeenLastCalledWith({ start: 200, end: 700 });
+  fireEvent.pointerUp(canvas, { pointerId: 2, clientX: 800, clientY: 10 });
+  fireEvent.pointerUp(canvas, { pointerId: 1, clientX: 400, clientY: 10 });
+  expect(props.onSelect).not.toHaveBeenCalled();
+});
+
+it("keeps a tapped bar's details up after the finger lifts", () => {
+  const { view, canvas, props } = renderTouchFlamegraph();
+  fireEvent.pointerDown(canvas, { clientX: 50, clientY: 5 });
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  fireEvent.pointerLeave(canvas);
+  expect(props.onSelect).toHaveBeenCalledWith("tapped");
+  expect(view.getByText("Details of tapped span")).toBeInTheDocument();
+  fireEvent.pointerDown(canvas, { clientX: 50, clientY: 5 });
+  expect(view.queryByText("Details of tapped span")).toBeNull();
+});
+
+it("closes a tapped bar's details on a touch outside the bars", () => {
+  const { view, canvas } = renderTouchFlamegraph();
+  fireEvent.pointerDown(canvas, { clientX: 50, clientY: 5 });
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  expect(view.getByText("Details of tapped span")).toBeInTheDocument();
+  fireEvent.pointerDown(document.body);
+  expect(view.queryByText("Details of tapped span")).toBeNull();
+});
+
+it("hands a tapped bar to onTap instead of showing its details over the bars", () => {
+  const onTap = vi.fn();
+  const { view, canvas, props } = renderTouchFlamegraph();
+  view.rerender(<TraceFlamegraph {...props} onTap={onTap} />);
+  fireEvent.pointerDown(canvas, { clientX: 50, clientY: 5 });
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  expect(onTap).toHaveBeenCalledWith("tapped");
+  expect(view.queryByText("Details of tapped span")).toBeNull();
+});
+
+it("hands a clicked bar to onClick instead of selecting it", () => {
+  const onClick = vi.fn();
+  const { canvas, props } = renderTouchFlamegraph({ onClick });
+  fireEvent.pointerDown(canvas, { pointerType: "mouse", clientX: 50, clientY: 5 });
+  fireEvent.pointerUp(canvas, { pointerType: "mouse", clientX: 50, clientY: 5 });
+  expect(onClick).toHaveBeenCalledWith("tapped");
+
+  fireEvent.pointerDown(canvas, { clientX: 50, clientY: 5 });
+  fireEvent.pointerUp(canvas, { clientX: 50, clientY: 5 });
+  expect(props.onSelect).not.toHaveBeenCalled();
+});

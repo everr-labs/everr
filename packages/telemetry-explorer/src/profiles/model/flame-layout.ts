@@ -2,7 +2,7 @@ import type { VisualLayout } from "../../traces/ui/viewer/rendering/compute-visu
 import type { FlamegraphSpan } from "../../traces/ui/viewer/rendering/types";
 import type { FlameNode, FlameTree } from "./flame-tree";
 
-/** The attribute the trace flame graph's `colorBy` reads to color a frame. */
+/** The attribute the trace flamegraph's `colorBy` reads to color a frame. */
 export const FRAME_COLOR_KEY = "everr.profile.frame.package";
 /** No preassigned colors: a profile has far more packages than palette slots,
  *  so each frame keeps its hashed color. */
@@ -10,7 +10,7 @@ export const FRAME_COLORS: ReadonlyMap<string, string> = new Map();
 
 export type ProfileFlamegraph = {
   layout: VisualLayout;
-  /** The full x extent, in the trace flame graph's millisecond units. */
+  /** The full x extent, in the trace flamegraph's millisecond units. */
   durationMs: number;
   nodes: ReadonlyMap<string, FlameNode>;
 };
@@ -34,7 +34,7 @@ export function framePackage(name: string): string {
 }
 
 /**
- * Lays a profile out for the trace flame graph. That component places bars by
+ * Lays a profile out for the trace flamegraph. That component places bars by
  * `timestamp` (ms) and `durationNano`, so a frame's offset and weight go there,
  * and the weight reads back unchanged from `durationNano`. The trace layout
  * packs overlapping spans and moves subtrees to dodge connectors, so it does

@@ -29,7 +29,7 @@ export interface ExploreBackend {
     metrics: MetricsRepositoryLike;
     errors: ErrorsRepositoryLike;
     profiles: ProfilesRepositoryLike;
-    /** The runtime metrics the Profiles page charts above the flame graph. */
+    /** The runtime metrics the Profiles page charts above the flamegraph. */
     runtimeMetrics: RuntimeMetricsRepositoryLike;
   };
   /** Wraps every Explore page, in place of the page while the data source is not ready. */

@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { cn } from "@everr/ui/lib/utils";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { type ReactNode, useMemo, useState } from "react";
 import type { ViewRange } from "../../traces/ui/viewer/flamegraph";
@@ -38,6 +39,7 @@ export function SandwichView({
   onSelect,
   onBack,
   renderHover,
+  actions,
 }: {
   fn: FunctionRef;
   sandwich: Sandwich;
@@ -48,22 +50,29 @@ export function SandwichView({
   onSelect: (fn: FunctionRef) => void;
   onBack: () => void;
   renderHover: (node: FlameNode, diff: FrameDiff | undefined) => ReactNode;
+  /** Extra controls at the end of the header. */
+  actions?: ReactNode;
 }) {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex min-h-9 shrink-0 items-center gap-2 border-b px-3 py-1 text-xs">
+      <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 text-xs">
         <Button variant="outline" size="sm" onClick={onBack}>
           <ArrowLeft data-icon="inline-start" />
-          Flame graph
+          Flamegraph
         </Button>
         <span className="text-muted-foreground shrink-0">Callers and callees of</span>
-        <span className="truncate font-mono font-medium" title={fn.name}>
+        {/* On its own line on narrow screens, where it would truncate to nothing. */}
+        <span
+          className="truncate font-mono font-medium max-sm:order-last max-sm:basis-full"
+          title={fn.name}
+        >
           {fn.name}
         </span>
         <span className="text-muted-foreground ml-auto shrink-0 tabular-nums">
           {formatProfileValue(sandwich.callees.root.total, unit)} (
           {formatPercent(sandwich.callees.root.total, total)})
         </span>
+        {actions}
       </div>
       {sandwich.callees.root.total === 0 ? (
         <p className="text-muted-foreground px-3 py-4 text-xs">
@@ -158,6 +167,7 @@ export function FunctionPanel({
   sourceUrl,
   exampleTraces,
   renderTraceLink,
+  className,
 }: {
   /** Absent when the function is not in the current stacks. */
   stat: FunctionStat | undefined;
@@ -167,9 +177,15 @@ export function FunctionPanel({
   sourceUrl: string | undefined;
   exampleTraces: ExampleTracesState;
   renderTraceLink: RenderProfileTraceLink | undefined;
+  className?: string;
 }) {
   return (
-    <aside className="flex min-h-0 flex-col overflow-y-auto border-t text-xs lg:w-80 lg:shrink-0 lg:border-t-0 lg:border-l">
+    <aside
+      className={cn(
+        "flex min-h-0 flex-col overflow-y-auto border-t text-xs lg:w-80 lg:shrink-0 lg:border-t-0 lg:border-l",
+        className,
+      )}
+    >
       <div className="border-b px-3 py-2">
         {stat ? (
           <FrameDetails frame={stat} unit={unit} total={total} />

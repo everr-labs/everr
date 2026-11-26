@@ -1,6 +1,7 @@
+/* oxlint-disable jsx-a11y/prefer-tag-over-role -- The header must sit outside the scrolling rows, which a native table cannot do, so the table is built from ARIA table roles. */
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowDown, ExternalLink, Layers } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 import { type FunctionDiff, formatShareDelta } from "../model/diff";
 import type { FunctionStat } from "../model/flame-tree";
 import type { FunctionRef } from "../model/sandwich";
@@ -13,14 +14,19 @@ const MAX_ROWS = 200;
 
 type SortKey = "self" | "total";
 
+const TOP_COLUMNS =
+  "grid grid-cols-[minmax(0,1fr)_6rem_6rem] items-center sm:grid-cols-[minmax(0,1fr)_11rem_11rem]";
+const DIFF_COLUMNS =
+  "grid grid-cols-[minmax(0,1fr)_6rem_6rem_5rem] items-center sm:grid-cols-[minmax(0,1fr)_11rem_11rem_7rem]";
+
 /** Row interactions shared by both tables. */
 type RowActions = {
-  /** The function a row click picked: highlighted in the flame graph, or shown in callers and callees. */
+  /** The function a row click picked: highlighted in the flamegraph, or shown in callers and callees. */
   activeKey?: string;
   /** What a click on a function's name does, for its tooltip. */
   activateHint: string;
   onActivate: (fn: FunctionRef & { key: string }) => void;
-  /** Lit up while its frames are hovered in the flame graph. */
+  /** Lit up while its frames are hovered in the flamegraph. */
   hoveredKey?: string;
   onHover: (key: string | undefined) => void;
   /** Absent where there is no room for the callers and callees view. */
@@ -49,27 +55,25 @@ export function TopFunctionsTable({
   );
 
   return (
-    <table className="w-full table-fixed border-collapse text-xs">
-      <caption className="sr-only">Top functions</caption>
-      <thead className="bg-background sticky top-0 z-[1]">
-        <tr className="text-muted-foreground border-b text-left">
-          <th scope="col" className="px-3 py-1.5 font-medium">
-            Function
-          </th>
+    <FunctionsTable
+      label="Top functions"
+      columns={TOP_COLUMNS}
+      header={
+        <>
+          <ColumnHeader>Function</ColumnHeader>
           <SortHeader label="Self" sortKey="self" active={sortKey} onSort={setSortKey} />
           <SortHeader label="Total" sortKey="total" active={sortKey} onSort={setSortKey} />
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.key} {...rowProps(row.key, actions)}>
-            <FunctionCell row={row} {...actions} />
-            <ValueCell value={row.self} unit={unit} total={total} />
-            <ValueCell value={row.total} unit={unit} total={total} />
-          </tr>
-        ))}
-      </tbody>
-    </table>
+        </>
+      }
+    >
+      {rows.map((row) => (
+        <div key={row.key} {...rowProps(row.key, TOP_COLUMNS, actions)}>
+          <FunctionCell row={row} {...actions} />
+          <ValueCell value={row.self} unit={unit} total={total} />
+          <ValueCell value={row.total} unit={unit} total={total} />
+        </div>
+      ))}
+    </FunctionsTable>
   );
 }
 
@@ -96,53 +100,93 @@ export function DiffFunctionsTable({
     [rows],
   );
   return (
-    <table className="w-full table-fixed border-collapse text-xs">
-      <caption className="sr-only">Functions by change in self time</caption>
-      <thead className="bg-background sticky top-0 z-[1]">
-        <tr className="text-muted-foreground border-b text-left">
-          <th scope="col" className="px-3 py-1.5 font-medium">
-            Function
-          </th>
-          <th scope="col" className="w-44 px-3 py-1.5 text-right font-medium">
-            Baseline self
-          </th>
-          <th scope="col" className="w-44 px-3 py-1.5 text-right font-medium">
-            Self
-          </th>
-          <th
-            scope="col"
-            aria-sort="descending"
-            className="text-foreground w-28 px-3 py-1.5 text-right font-medium"
-          >
+    <FunctionsTable
+      label="Functions by change in self time"
+      columns={DIFF_COLUMNS}
+      header={
+        <>
+          <ColumnHeader>Function</ColumnHeader>
+          <ColumnHeader className="text-right">Baseline self</ColumnHeader>
+          <ColumnHeader className="text-right">Self</ColumnHeader>
+          <ColumnHeader className="text-foreground text-right" sort="descending">
             Change
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {sorted.map((row) => (
-          <tr key={row.key} {...rowProps(row.key, actions)}>
-            <FunctionCell row={row} {...actions} />
-            <ValueCell value={row.baselineSelf} unit={unit} total={baselineTotal} />
-            <ValueCell value={row.comparisonSelf} unit={unit} total={total} />
-            <td
-              className={cn(
-                "px-3 py-1 text-right tabular-nums whitespace-nowrap",
-                row.selfDelta > 0.0001 && "text-destructive",
-                row.selfDelta < -0.0001 && "text-emerald-600 dark:text-emerald-400",
-              )}
-            >
-              {formatShareDelta(row.selfDelta)}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+          </ColumnHeader>
+        </>
+      }
+    >
+      {sorted.map((row) => (
+        <div key={row.key} {...rowProps(row.key, DIFF_COLUMNS, actions)}>
+          <FunctionCell row={row} {...actions} />
+          <ValueCell value={row.baselineSelf} unit={unit} total={baselineTotal} />
+          <ValueCell value={row.comparisonSelf} unit={unit} total={total} />
+          <div
+            role="cell"
+            className={cn(
+              "px-3 py-1 text-right tabular-nums whitespace-nowrap pointer-coarse:py-2.5",
+              row.selfDelta > 0.0001 && "text-destructive",
+              row.selfDelta < -0.0001 && "text-emerald-600 dark:text-emerald-400",
+            )}
+          >
+            {formatShareDelta(row.selfDelta)}
+          </div>
+        </div>
+      ))}
+    </FunctionsTable>
   );
 }
 
-function rowProps(key: string, { activeKey, hoveredKey, onHover }: RowActions) {
+/**
+ * The header row stays above the scrolling rows instead of sticking inside
+ * them: iOS moves a sticky header a frame behind the rows during momentum
+ * scrolling, so rows showed above it. Both parts reserve the scrollbar's room,
+ * so their columns line up.
+ */
+function FunctionsTable({
+  label,
+  columns,
+  header,
+  children,
+}: {
+  label: string;
+  columns: string;
+  header: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div role="table" aria-label={label} className="flex min-h-0 flex-1 flex-col text-xs">
+      <div role="rowgroup" className="shrink-0 overflow-hidden border-b [scrollbar-gutter:stable]">
+        <div role="row" className={cn(columns, "text-muted-foreground text-left")}>
+          {header}
+        </div>
+      </div>
+      <div role="rowgroup" className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ColumnHeader({
+  className,
+  sort,
+  children,
+}: {
+  className?: string;
+  sort?: "descending" | "none";
+  children: ReactNode;
+}) {
+  return (
+    <div role="columnheader" aria-sort={sort} className={cn("px-3 py-1.5 font-medium", className)}>
+      {children}
+    </div>
+  );
+}
+
+function rowProps(key: string, columns: string, { activeKey, hoveredKey, onHover }: RowActions) {
   return {
+    role: "row",
     className: cn(
+      columns,
       "hover:bg-muted/40 border-b border-border/50",
       key === hoveredKey && "bg-muted/40",
       key === activeKey && "bg-muted/70",
@@ -162,7 +206,7 @@ function FunctionCell({
 }: { row: { key: string; name: string; file: string } } & RowActions) {
   const sourceUrl = sourceUrlOf(row.key);
   return (
-    <td className="px-3 py-1 font-mono">
+    <div role="cell" className="min-w-0 px-3 py-1 font-mono pointer-coarse:py-2.5">
       <div className="flex min-w-0 items-center gap-2">
         <button
           type="button"
@@ -183,12 +227,12 @@ function FunctionCell({
         {onShowCallers ? (
           <button
             type="button"
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground hover:text-foreground shrink-0 pointer-coarse:-m-2 pointer-coarse:p-2"
             aria-label={`Show callers and callees of ${row.name}`}
             title="Callers and callees"
             onClick={() => onShowCallers({ name: row.name, file: row.file })}
           >
-            <Layers className="size-3" />
+            <Layers className="size-3 pointer-coarse:size-4" />
           </button>
         ) : null}
         {sourceUrl ? (
@@ -196,15 +240,15 @@ function FunctionCell({
             href={sourceUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground hover:text-foreground shrink-0 pointer-coarse:-m-2 pointer-coarse:p-2"
             aria-label={`Open source of ${row.name}`}
             title="Open source"
           >
-            <ExternalLink className="size-3" />
+            <ExternalLink className="size-3 pointer-coarse:size-4" />
           </a>
         ) : null}
       </div>
-    </td>
+    </div>
   );
 }
 
@@ -221,15 +265,11 @@ function SortHeader({
 }) {
   const isActive = sortKey === active;
   return (
-    <th
-      scope="col"
-      aria-sort={isActive ? "descending" : "none"}
-      className="w-44 px-3 py-1.5 text-right font-medium"
-    >
+    <ColumnHeader className="text-right" sort={isActive ? "descending" : "none"}>
       <button
         type="button"
         className={cn(
-          "hover:text-foreground inline-flex items-center gap-1",
+          "hover:text-foreground inline-flex items-center gap-1 pointer-coarse:py-2",
           isActive && "text-foreground",
         )}
         onClick={() => onSort(sortKey)}
@@ -237,17 +277,21 @@ function SortHeader({
         {label}
         <ArrowDown className={cn("size-3", !isActive && "opacity-0")} />
       </button>
-    </th>
+    </ColumnHeader>
   );
 }
 
 function ValueCell({ value, unit, total }: { value: number; unit: string; total: number }) {
   return (
-    <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+    <div
+      role="cell"
+      className="px-3 py-1 text-right tabular-nums whitespace-nowrap pointer-coarse:py-2.5"
+    >
       {formatProfileValue(value, unit)}
-      <span className="text-muted-foreground ml-1.5 inline-block w-14">
+      {/* Under the value on narrow screens, so the function names keep their room. */}
+      <span className="text-muted-foreground block sm:ml-1.5 sm:inline-block sm:w-14">
         {formatPercent(value, total)}
       </span>
-    </td>
+    </div>
   );
 }

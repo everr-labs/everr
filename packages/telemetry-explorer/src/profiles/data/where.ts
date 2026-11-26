@@ -68,7 +68,7 @@ export function buildProfileWhere(
   }
   const q = input.q?.trim();
   if (q) {
-    // A sample matches when any frame of its stack does, so the flame graph
+    // A sample matches when any frame of its stack does, so the flamegraph
     // keeps the callers and callees around the searched function.
     clauses.push("arrayExists(f -> positionCaseInsensitive(f, {q:String}) > 0, FunctionNames)");
     params.q = q;

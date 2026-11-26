@@ -11,7 +11,8 @@ export const TOUCH_SCRUB = "touch-pan-y touch-pinch-zoom";
  * Drag to select a range along a chart's axis. A press that doesn't move
  * along the axis selects nothing. A finger reads the chart instead: touch
  * presses go to `onTouch`, and `onTouchCancel` runs when the page takes the
- * swipe to scroll.
+ * swipe to scroll. With `touchSelects`, a finger selects like a mouse, for a
+ * chart that is waiting for a range.
  */
 export function useBrush({
   positionAt,
@@ -19,6 +20,7 @@ export function useBrush({
   onSelect,
   onTouch,
   onTouchCancel,
+  touchSelects = false,
 }: {
   /** Null where a drag can't start; `clamped` keeps a drag past the plot's edge on it. */
   positionAt: (event: PointerEvent, clamped: boolean) => number | null;
@@ -27,7 +29,9 @@ export function useBrush({
   onSelect: (from: number, to: number) => void;
   onTouch?: (event: PointerEvent) => void;
   onTouchCancel?: () => void;
+  touchSelects?: boolean;
 }) {
+  const reads = (event: PointerEvent) => event.pointerType === "touch" && !touchSelects;
   const [drag, setDrag] = useState<{ from: number; to: number } | null>(null);
 
   const span = drag ? Math.abs(drag.to - drag.from) : 0;
@@ -38,7 +42,7 @@ export function useBrush({
 
   const handlers = {
     onPointerDown: (event: PointerEvent) => {
-      if (event.pointerType === "touch") return onTouch?.(event);
+      if (reads(event)) return onTouch?.(event);
       if (event.button !== 0) return;
       const from = positionAt(event, false);
       if (from === null) return;
@@ -46,7 +50,7 @@ export function useBrush({
       event.currentTarget.setPointerCapture(event.pointerId);
     },
     onPointerMove: (event: PointerEvent) => {
-      if (event.pointerType === "touch") return onTouch?.(event);
+      if (reads(event)) return onTouch?.(event);
       if (drag) setDrag({ ...drag, to: positionAt(event, true) ?? drag.to });
     },
     onPointerUp: () => {

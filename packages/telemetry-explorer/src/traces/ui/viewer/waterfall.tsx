@@ -13,7 +13,7 @@ import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight } from "lucide-react";
-import { type CSSProperties, type Ref, useState } from "react";
+import { type CSSProperties, type ReactNode, type Ref, useState } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 import { serviceColor } from "../shared/service-color";
 import { SpanName } from "../span-name";
@@ -34,6 +34,8 @@ export function TraceWaterfall({
   range,
   onToggle,
   onSelect,
+  headerActions,
+  compact = false,
   virtuosoRef,
 }: {
   rows: TraceNode[];
@@ -47,6 +49,11 @@ export function TraceWaterfall({
   range: ViewRange;
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
+  /** Buttons at the end of the name column's header. */
+  headerActions?: ReactNode;
+  /** Phone sizing: desktop's column minimums would leave the divider only a
+   *  few pixels to travel on a 390px screen. */
+  compact?: boolean;
   virtuosoRef?: Ref<VirtuosoHandle>;
 }) {
   const [labelWidth, setLabelWidth] = useState<number>();
@@ -61,9 +68,9 @@ export function TraceWaterfall({
         className="pointer-events-none absolute inset-0 z-10"
       >
         <ResizablePanel
-          defaultSize="38%"
-          minSize="220px"
-          maxSize="70%"
+          defaultSize={compact ? "55%" : "38%"}
+          minSize={compact ? "96px" : "220px"}
+          maxSize={compact ? "80%" : "70%"}
           onResize={({ inPixels }) => setLabelWidth(inPixels)}
         />
         <ResizableHandle
@@ -71,10 +78,16 @@ export function TraceWaterfall({
           aria-label="Resize waterfall name column"
           className="pointer-events-auto"
         />
-        <ResizablePanel minSize="160px" />
+        <ResizablePanel minSize={compact ? "64px" : "160px"} />
       </ResizablePanelGroup>
       <div className="grid shrink-0 grid-cols-[var(--waterfall-label-width)_1px_minmax(0,1fr)] border-b">
-        <div className="text-muted-foreground px-3 pt-1.5 text-[10px]">Service / operation</div>
+        <div className="text-muted-foreground flex items-center gap-1 pl-3 pr-1 text-[10px]">
+          <span className="min-w-0 flex-1 truncate">
+            <span className="max-sm:hidden">Service / operation</span>
+            <span className="sm:hidden">Operation</span>
+          </span>
+          {headerActions}
+        </div>
         <TimeRuler range={range} className="col-start-3 border-b-0" />
       </div>
       <Virtuoso
@@ -119,6 +132,7 @@ export function TraceWaterfall({
                   <Button
                     variant="ghost"
                     size="icon-xs"
+                    className="pointer-coarse:size-8"
                     aria-label={`${openNodes.has(node.spanId) ? "Collapse" : "Expand"} ${node.name}`}
                     onClick={() => onToggle(node.spanId)}
                   >
@@ -130,30 +144,37 @@ export function TraceWaterfall({
                     />
                   </Button>
                 ) : (
-                  <span className="w-5 shrink-0" />
+                  <span className="w-5 shrink-0 pointer-coarse:w-8" />
                 )}
                 <span className="size-2 shrink-0 rounded-sm" style={{ backgroundColor: color }} />
+                {/* The whole rest of the row selects the span, status included,
+                    so a finger cannot land on a dead spot. */}
                 <button
                   type="button"
-                  className="min-w-0 flex-1 truncate text-left text-xs outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
+                  className="flex h-full min-w-0 flex-1 items-center gap-1 text-left text-xs outline-offset-2 focus-visible:outline-2 focus-visible:outline-ring"
                   aria-label={`Select ${node.name}`}
                   aria-pressed={selected}
                   onClick={() => onSelect(node.spanId)}
                   title={`${node.source.serviceName}: ${node.name}`}
                 >
-                  <span className="text-muted-foreground mr-2">{node.source.serviceName}</span>
-                  <SpanName name={node.name} />
-                </button>
-                {status && (
-                  <span
-                    className={cn(
-                      "shrink-0 rounded border px-1 font-mono text-[10px]",
-                      Number(status) >= 400 ? "text-destructive" : "text-muted-foreground",
-                    )}
-                  >
-                    {status}
+                  <span className="min-w-0 flex-1 truncate">
+                    {/* The color dot and the legend name the service on phones. */}
+                    <span className="text-muted-foreground mr-2 max-sm:hidden">
+                      {node.source.serviceName}
+                    </span>
+                    <SpanName name={node.name} />
                   </span>
-                )}
+                  {status && (
+                    <span
+                      className={cn(
+                        "shrink-0 rounded border px-1 font-mono text-[10px]",
+                        Number(status) >= 400 ? "text-destructive" : "text-muted-foreground",
+                      )}
+                    >
+                      {status}
+                    </span>
+                  )}
+                </button>
               </div>
               <button
                 type="button"
@@ -173,7 +194,7 @@ export function TraceWaterfall({
                 {right >= 0 && left <= 100 && (
                   <span
                     className={cn(
-                      "absolute top-2 flex h-5 min-w-px items-center gap-2 overflow-hidden rounded-sm px-1.5 text-[10px]",
+                      "@container absolute top-2 flex h-5 min-w-px items-center gap-2 overflow-hidden rounded-sm px-1.5 text-[10px]",
                       selected && "outline-2 outline-offset-1 outline-ring",
                       node.hasError && "ring-1 ring-destructive",
                     )}
@@ -185,7 +206,9 @@ export function TraceWaterfall({
                     }}
                   >
                     {node.hasError && <span className="absolute inset-0 bg-destructive/30" />}
-                    <span className="relative shrink-0 font-mono">
+                    {/* A bar too short for its duration would cut it to a
+                        misleading digit or two; the title still has it. */}
+                    <span className="relative shrink-0 font-mono @max-[2.75rem]:hidden">
                       {formatDuration(node.durationNano, "ns")}
                     </span>
                     {preview && <span className="truncate">{preview}</span>}

@@ -78,6 +78,8 @@ interface SeriesChartProps {
   /** Turns on drag to select a run of points, reported inclusive. A click
    *  selects nothing. */
   onSelect?: (from: number, to: number) => void;
+  /** A finger drag selects too, instead of reading the values under it. */
+  selectOnTouch?: boolean;
   /** Smaller text and insets, for small multiples. */
   compact?: boolean;
   /** Sizes the chart; it needs a height. */
@@ -144,6 +146,7 @@ export function SeriesChart({
   showLegend = false,
   highlight,
   onSelect,
+  selectOnTouch = false,
   compact = false,
   className,
   sparseLabels = false,
@@ -415,6 +418,7 @@ export function SeriesChart({
     onSelect: (from, to) => onSelect?.(Math.round(from), Math.round(to)),
     onTouch: showPointer,
     onTouchCancel: () => setPointer(null),
+    touchSelects: selectOnTouch,
   });
   const selected = zoom.range && zoom.range.map(Math.round);
 
