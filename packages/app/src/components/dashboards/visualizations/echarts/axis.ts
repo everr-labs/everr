@@ -1,3 +1,4 @@
+import { formatClock, formatDateTime } from "@everr/ui/lib/timestamp";
 import type { YAXisComponentOption } from "echarts";
 import { generateTimeTicks, niceLinearDomain, timeTickInterval } from "../data-utils";
 import type { ValueFormatter } from "../value-format";
@@ -101,7 +102,7 @@ const DAY = 86_400_000;
 
 /**
  * Time labels for an axis over `domain` whose times are `spacing` apart, in
- * the user's locale and clock, all in one format: years or months for times
+ * the user's time zone, all in one format: years or months for times
  * that far apart, else times, with the date too when the range spans more
  * than one day (to the second when times are under a minute apart).
  */
@@ -112,21 +113,18 @@ export function timeLabelFormatter(
   // A range ending at midnight ends on the day before it.
   const lastInstant = Math.max(domain[0], domain[1] - 1);
   const multiDay = new Date(domain[0]).toDateString() !== new Date(lastInstant).toDateString();
-  const format = new Intl.DateTimeFormat(
-    undefined,
-    spacing >= 365 * DAY
-      ? { year: "numeric" }
-      : spacing >= 28 * DAY
-        ? { month: "short", year: "numeric" }
-        : {
-            ...(multiDay && { month: "short", day: "numeric" }),
-            hour: "numeric",
-            minute: "2-digit",
-            // Ticks under a minute apart would otherwise read the same.
-            ...(spacing < 60_000 && { second: "2-digit" }),
-          },
-  );
-  return (value) => format.format(value);
+  if (spacing >= 28 * DAY) {
+    const format = new Intl.DateTimeFormat(
+      undefined,
+      spacing >= 365 * DAY ? { year: "numeric" } : { month: "short", year: "numeric" },
+    );
+    return (value) => format.format(value);
+  }
+  // Ticks under a minute apart would otherwise read the same.
+  const precision = spacing < 60_000 ? "second" : "minute";
+  return multiDay
+    ? (value) => formatDateTime(value, precision, "never")
+    : (value) => formatClock(value, precision);
 }
 
 /**

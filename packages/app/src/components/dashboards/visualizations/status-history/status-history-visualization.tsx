@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { LayoutGrid } from "lucide-react";
 import { useMemo } from "react";
 import type { VisualizationProps } from "../index";
@@ -31,7 +32,7 @@ export function StatusHistoryVisualization({
           start: c.start,
           end: c.end,
           state: c.state,
-          title: new Date(c.ts).toLocaleString(),
+          title: formatDateTime(c.ts),
         })),
       })),
     [model],

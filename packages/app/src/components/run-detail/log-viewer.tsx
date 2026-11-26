@@ -10,7 +10,7 @@ const Ansi =
 
 import { buttonVariants } from "@everr/ui/components/button";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
-import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
+import { formatClock } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
@@ -139,7 +139,7 @@ export function LogViewer({
               {line.body}
             </Ansi>
             <span className="text-muted-foreground select-none pl-2">
-              {formatTimestampTimeOfDay(line.timestamp)}
+              {formatClock(line.timestamp)}
             </span>
           </button>
         );
@@ -177,7 +177,7 @@ export function LogViewer({
               <span />
             ) : (
               <span className="text-muted-foreground select-none pl-2">
-                {formatTimestampTimeOfDay(line.timestamp)}
+                {formatClock(line.timestamp)}
               </span>
             )}
           </div>
@@ -207,7 +207,7 @@ export function LogViewer({
             {line.body}
           </Ansi>
           <span className="text-muted-foreground select-none pl-2">
-            {formatTimestampTimeOfDay(line.timestamp)}
+            {formatClock(line.timestamp)}
           </span>
         </div>
       );

@@ -166,13 +166,13 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton({ withDay }: { withDay: bo
           className={cn(
             "grid grid-cols-1 py-0.5 font-mono text-[0.75rem] md:py-0",
             withDay
-              ? "md:grid-cols-[calc(19ch+0.75rem)_minmax(0,1fr)]"
-              : "md:grid-cols-[calc(11ch+0.75rem)_minmax(0,1fr)]",
+              ? "md:grid-cols-[calc(16ch+0.75rem)_minmax(0,1fr)]"
+              : "md:grid-cols-[calc(8ch+0.75rem)_minmax(0,1fr)]",
           )}
         >
           <div className="flex h-4 items-center px-3 md:h-5 md:pr-0">
-            {/* As wide as a typical time: "8:46:35 PM", "Nov 21, 8:46:35 PM". */}
-            <Skeleton className={cn("h-2.5 rounded-sm", withDay ? "w-[18ch]" : "w-[10ch]")} />
+            {/* As wide as a typical time: "20:46:35", "Nov 21, 20:46:35". */}
+            <Skeleton className={cn("h-2.5 rounded-sm", withDay ? "w-[16ch]" : "w-[8ch]")} />
           </div>
           <div className="flex h-4 min-w-0 items-center px-3 md:h-5 md:pr-9">
             <Skeleton className="h-2.5 rounded-sm" style={{ width: raggedWidth(index, 35, 90) }} />

@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
@@ -489,7 +490,7 @@ export function BarChartVisualization({
       {hover && tooltipRow && (
         <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
-            title={isTimeAxis ? new Date(Number(tooltipX)).toLocaleString() : String(tooltipX)}
+            title={isTimeAxis ? formatDateTime(Number(tooltipX)) : String(tooltipX)}
             rows={seriesTooltipRows(series, tooltipRow, activeSeries, formatter.format)}
           />
         </CursorTooltip>

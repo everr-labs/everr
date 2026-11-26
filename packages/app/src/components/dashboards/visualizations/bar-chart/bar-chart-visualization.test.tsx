@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { fireEvent, render } from "@testing-library/react";
 import * as echarts from "echarts/core";
 import { beforeEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
@@ -157,8 +158,9 @@ describe("BarChartVisualization", () => {
   it("labels round times only on bars whose bucket holds them", () => {
     const hour = (h: number) => new Date(2026, 5, 7, h).getTime();
     const domain: [number, number] = [hour(0), hour(24)];
-    // Hourly buckets, with 03:00 to 08:00 empty and so skipped by the query.
-    const hours = Array.from({ length: 24 }, (_, h) => h).filter((h) => h < 3 || h > 8);
+    // Hourly buckets, with 03:00 to 10:00 empty and so skipped by the query:
+    // a gap that holds a round time whatever the tick step.
+    const hours = Array.from({ length: 24 }, (_, h) => h).filter((h) => h < 3 || h > 10);
     render(
       <BarChartVisualization
         {...props}
@@ -178,7 +180,7 @@ describe("BarChartVisualization", () => {
     const format = timeLabelFormatter(domain, 3_600_000);
     expect(labelled.length).toBeGreaterThanOrEqual(3);
     expect(labelled).toEqual(labelled.map(([h]) => [h, format(hour(h as number))]));
-    expect(labelled.map(([h]) => h)).not.toContain(9);
+    expect(labelled.map(([h]) => h)).not.toContain(11);
   });
 
   it("labels bars a query fixes in time for the time they span, not the dashboard's", () => {
@@ -217,14 +219,8 @@ describe("BarChartVisualization", () => {
     );
 
     const { formatter } = renderedChart().getOption().xAxis[0].axisLabel;
-    const format = new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit",
-    });
     expect(times.map((_, index) => formatter("", index))).toEqual(
-      times.map((t) => format.format(t)),
+      times.map((t) => formatDateTime(t, "minute", "never")),
     );
   });
 });

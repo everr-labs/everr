@@ -1,4 +1,5 @@
-import { ChartEmptyState, formatChartDate } from "@everr/ui/components/chart-helpers";
+import { formatDay } from "@everr/ui/lib/timestamp";
+import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
 import { SeriesChart } from "@everr/ui/components/series-chart";
 import { useMemo } from "react";
 import type { RepoSuccessRatePoint } from "#app/data/repo-detail/schemas.ts";
@@ -15,8 +16,8 @@ const AXES = {
 export function RepoSuccessRateChart({ data }: RepoSuccessRateChartProps) {
   const chart = useMemo(
     () => ({
-      labels: data.map((point) => formatChartDate(point.date)),
-      titles: data.map((point) => new Date(point.date).toLocaleDateString()),
+      labels: data.map((point) => formatDay(point.date, "never")),
+      titles: data.map((point) => formatDay(point.date, "always")),
       series: [
         {
           id: "totalRuns",

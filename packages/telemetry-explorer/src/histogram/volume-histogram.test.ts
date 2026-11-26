@@ -1,3 +1,4 @@
+import { formatDay } from "@everr/ui/lib/timestamp";
 import { describe, expect, it } from "vite-plus/test";
 import { axisLabels } from "./volume-histogram";
 
@@ -9,8 +10,7 @@ function buckets(start: Date, count: number, hours: number) {
   });
 }
 
-const day = (d: number) =>
-  new Date(2026, 10, d).toLocaleDateString([], { month: "short", day: "numeric" });
+const day = (d: number) => formatDay(new Date(2026, 10, d), "never");
 
 describe("axisLabels", () => {
   it("names each day on a multi-day range, and leaves the rest of the buckets blank", () => {
@@ -18,7 +18,7 @@ describe("axisLabels", () => {
     const labels = axisLabels(buckets(new Date(2026, 10, 10), 24, 3));
     // Midnight names the day; noon, in between, is a time.
     expect([labels[0], labels[8], labels[16]]).toEqual([day(10), day(11), day(12)]);
-    expect(labels[4]).toMatch(/12/);
+    expect(labels[4]).toBe("12:00");
     expect(labels[1]).toBe("");
   });
 

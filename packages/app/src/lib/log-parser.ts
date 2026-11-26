@@ -1,4 +1,4 @@
-import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
+import { formatClock } from "@everr/ui/lib/timestamp";
 import type { LogEntry } from "#app/data/runs/schemas.ts";
 
 export interface ParsedLogLine {
@@ -149,13 +149,10 @@ export function computeVisibleLines(
       }
     }
 
-    const headerTimestamp = formatTimestampTimeOfDay(lines[group.startIndex].timestamp);
+    const headerTimestamp = formatClock(lines[group.startIndex].timestamp);
     let hasUniformTimestamps = true;
     for (let i = group.startIndex + 1; i < group.endIndex; i++) {
-      if (
-        !lines[i].isGroupEnd &&
-        formatTimestampTimeOfDay(lines[i].timestamp) !== headerTimestamp
-      ) {
+      if (!lines[i].isGroupEnd && formatClock(lines[i].timestamp) !== headerTimestamp) {
         hasUniformTimestamps = false;
         break;
       }

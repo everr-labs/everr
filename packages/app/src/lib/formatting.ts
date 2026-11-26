@@ -51,16 +51,6 @@ export function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
 }
 
-export function formatTimeOfDay(unixMs: number): string {
-  const d = new Date(unixMs);
-  return d.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-}
-
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 
 export function normalizeTimestampToUtc(timestamp: string): string {

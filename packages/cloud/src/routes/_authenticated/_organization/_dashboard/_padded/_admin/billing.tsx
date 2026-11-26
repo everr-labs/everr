@@ -1,3 +1,4 @@
+import { formatDay } from "@everr/ui/lib/timestamp";
 import { PageHeader } from "@everr/ui/components/page-layout";
 import { authClient } from "@everr/app/identity/client";
 import { Badge } from "@everr/ui/components/badge";
@@ -110,11 +111,7 @@ function Header({ orgName }: { orgName?: string }) {
 
 function ProHero({ entitlement }: { entitlement: Entitlement }) {
   const renewalDate = entitlement.currentPeriodEnd
-    ? new Date(entitlement.currentPeriodEnd).toLocaleDateString(undefined, {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
+    ? formatDay(entitlement.currentPeriodEnd, "always")
     : null;
 
   return (

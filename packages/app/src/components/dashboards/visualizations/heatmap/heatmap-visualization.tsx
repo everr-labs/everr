@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
@@ -281,7 +282,7 @@ export function HeatmapVisualization({
               model.columns.kind === "category"
                 ? model.columns.labels[hover.target.cell.column]
                 : columnSpan(model.columns, hover.target.cell.column, domain)
-                    .map((ms) => new Date(ms).toLocaleString())
+                    .map((ms) => formatDateTime(ms))
                     .join(" – ")
             }
             rows={[

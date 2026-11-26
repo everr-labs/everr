@@ -16,36 +16,87 @@ export function parseTimestampAsUTC(timestamp: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-export function formatTimestampTimeOfDay(timestamp: string): string {
-  const parsed = parseTimestampAsUTC(timestamp);
-  return parsed ? parsed.toLocaleTimeString() : "—";
+type Instant = Date | number | string;
+export type ClockPrecision = "minute" | "second" | "millisecond";
+/** "auto" shows the year only when it is not the current one. */
+type YearDisplay = "auto" | "always" | "never";
+
+// Always a zero-padded 24h clock, whatever the locale's own: letting the
+// locale pick gave "14:54:11 PM" and rows of different widths.
+const clock = (extra: Intl.DateTimeFormatOptions) =>
+  new Intl.DateTimeFormat(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    ...extra,
+  });
+const CLOCK: Record<ClockPrecision, Intl.DateTimeFormat> = {
+  minute: clock({}),
+  second: clock({ second: "2-digit" }),
+  millisecond: clock({ second: "2-digit", fractionalSecondDigits: 3 }),
+};
+const DAY = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
+const DAY_YEAR = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+function toDate(at: Instant): Date | null {
+  const date = typeof at === "string" ? parseTimestampAsUTC(at) : new Date(at);
+  return date && !Number.isNaN(date.getTime()) ? date : null;
 }
 
-/** A row's time, local: "2:54:11 PM", or "Nov 10, 2:54:11 PM" when the list
- *  covers more than one day and the time alone would be ambiguous. */
-export function formatRowTimestamp(timestamp: string, withDay: boolean): string {
-  const parsed = parseTimestampAsUTC(timestamp);
-  if (!parsed) return "—";
-  const time = parsed.toLocaleTimeString();
-  if (!withDay) return time;
-  // Joined by hand: Safari's combined format reads "Nov 21 at 8:46:35 PM", one
-  // character too wide for the column, so it wrapped there only.
-  return `${parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
+/** "14:54", "14:54:11" or "14:54:11.078". */
+export function formatClock(at: Instant, precision: ClockPrecision = "second"): string {
+  const date = toDate(at);
+  return date ? CLOCK[precision].format(date) : "—";
 }
 
-export function formatRelativeTime(timestamp: string): string {
-  const date = parseTimestampAsUTC(timestamp);
+/** "Nov 10", or "Nov 10, 2025" with the year. */
+export function formatDay(at: Instant, year: YearDisplay = "auto"): string {
+  const date = toDate(at);
   if (!date) return "—";
+  const withYear =
+    year === "always" || (year === "auto" && date.getFullYear() !== new Date().getFullYear());
+  return (withYear ? DAY_YEAR : DAY).format(date);
+}
 
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  if (diffMs < 0) return "just now";
+/** "Nov 10, 14:54:11". Joined by hand: Safari's combined format reads
+ *  "Nov 21 at 20:46:35", too wide for the log column. */
+export function formatDateTime(
+  at: Instant,
+  precision: ClockPrecision = "second",
+  year: YearDisplay = "auto",
+): string {
+  return toDate(at) ? `${formatDay(at, year)}, ${formatClock(at, precision)}` : "—";
+}
 
-  const diffMins = Math.floor(diffMs / 60000);
+/** Both ends of a window, the end's date only when it is not the start's:
+ *  ["Nov 10, 14:00", "16:30"]. */
+export function formatWindowBounds(
+  from: Instant,
+  to: Instant,
+  precision: ClockPrecision = "second",
+): [string, string] {
+  const sameDay = toDate(from)?.toDateString() === toDate(to)?.toDateString();
+  const end = sameDay ? formatClock(to, precision) : formatDateTime(to, precision);
+  return [formatDateTime(from, precision), end];
+}
+
+/** A row's time: "14:54:11", or "Nov 10, 14:54:11" when the list spans days.
+ *  No year: the column is sized for this. */
+export function formatRowTimestamp(timestamp: string, withDay: boolean): string {
+  return withDay ? formatDateTime(timestamp, "second", "never") : formatClock(timestamp);
+}
+
+export function formatRelativeTime(at: Instant): string {
+  const date = toDate(at);
+  if (!date) return "—";
+  const diffMins = Math.floor((Date.now() - date.getTime()) / 60000);
   if (diffMins < 1) return "just now";
   if (diffMins < 60) return `${diffMins}m ago`;
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
-  const diffDays = Math.floor(diffHours / 24);
-  return `${diffDays}d ago`;
+  return `${Math.floor(diffHours / 24)}d ago`;
 }

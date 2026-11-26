@@ -1,3 +1,4 @@
+import { formatDateTime, formatWindowBounds } from "@everr/ui/lib/timestamp";
 import { Button } from "@everr/ui/components/button";
 import {
   DropdownMenu,
@@ -81,7 +82,7 @@ export function VersionMenu({
               <span className="flex min-w-0 flex-1 items-baseline justify-between gap-3">
                 <span className="truncate font-mono">{version.version}</span>
                 <span className="text-muted-foreground shrink-0 text-xs">
-                  last seen {formatInstant(version.lastSeen)}
+                  last seen {formatDateTime(version.lastSeen, "minute")}
                 </span>
               </span>
             </DropdownMenuRadioItem>
@@ -134,22 +135,8 @@ export function CompareStatus({
   );
 }
 
-function formatInstant(iso: string): string {
-  return new Date(iso).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 /** An absolute window in the viewer's time zone, the end's date only when it differs. */
 export function formatWindow(range: TimeRange): string {
-  const from = new Date(range.from);
-  const to = new Date(range.to);
-  const sameDay = from.toDateString() === to.toDateString();
-  const end = sameDay
-    ? to.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    : formatInstant(range.to);
-  return `${formatInstant(range.from)} to ${end}`;
+  const [start, end] = formatWindowBounds(range.from, range.to, "minute");
+  return `${start} to ${end}`;
 }

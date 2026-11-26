@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -126,7 +127,7 @@ function ConnectionRow({
             <>
               {" · Connected "}
               <time dateTime={new Date(connection.connectedAt).toISOString()}>
-                {new Date(connection.connectedAt).toLocaleString()}
+                {formatDateTime(connection.connectedAt, "minute")}
               </time>
             </>
           )}

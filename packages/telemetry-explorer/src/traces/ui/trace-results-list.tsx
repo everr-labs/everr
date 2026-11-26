@@ -9,6 +9,7 @@ import { raggedWidth, Skeleton, SkeletonLine } from "@everr/ui/components/skelet
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import {
+  formatDateTime,
   formatRelativeTime,
   formatRowTimestamp,
   parseTimestampAsUTC,
@@ -232,7 +233,7 @@ function TraceRow({
         <TooltipContent side="left">
           {started ? (
             <span className="flex flex-col gap-0.5">
-              <span className="tabular-nums">{started.toLocaleString()}</span>
+              <span className="tabular-nums">{formatDateTime(started)}</span>
               <span className="text-background/70">{formatRelativeTime(row.startTs)}</span>
             </span>
           ) : (

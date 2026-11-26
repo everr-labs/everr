@@ -1,5 +1,5 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
-import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { formatDateTime, formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
 import type { ReactNode } from "react";
@@ -100,9 +100,9 @@ export function ErrorIssueRow({
         </TooltipTrigger>
         <TooltipContent side="left">
           <span className="flex flex-col gap-0.5 tabular-nums">
-            <span>Last seen {lastSeen ? lastSeen.toLocaleString() : issue.lastSeen}</span>
+            <span>Last seen {lastSeen ? formatDateTime(lastSeen) : issue.lastSeen}</span>
             <span className="text-background/70">
-              First seen {firstSeen ? firstSeen.toLocaleString() : issue.firstSeen}
+              First seen {firstSeen ? formatDateTime(firstSeen) : issue.firstSeen}
             </span>
           </span>
         </TooltipContent>

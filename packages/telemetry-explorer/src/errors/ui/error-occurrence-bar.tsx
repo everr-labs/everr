@@ -1,5 +1,5 @@
 import { Button, buttonVariants } from "@everr/ui/components/button";
-import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { formatDateTime, formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ErrorOccurrence } from "../data/types";
@@ -13,16 +13,6 @@ export type RenderOccurrenceLink = (input: {
   className: string;
   children: ReactNode;
 }) => ReactNode;
-
-const TIMESTAMP_FORMAT: Intl.DateTimeFormatOptions = {
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  fractionalSecondDigits: 3,
-};
 
 /**
  * The occurrence on screen and the pager that steps through the loaded
@@ -79,7 +69,7 @@ export function ErrorOccurrenceBar({
       ) : null}
       <span className="text-muted-foreground tabular-nums" title={`${selected.timestamp} UTC`}>
         <span className="text-foreground">
-          {date ? date.toLocaleString(undefined, TIMESTAMP_FORMAT) : selected.timestamp}
+          {date ? formatDateTime(date, "millisecond", "always") : selected.timestamp}
         </span>
         {date ? `, ${formatRelativeTime(selected.timestamp)}` : null}
       </span>

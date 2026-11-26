@@ -2,6 +2,7 @@
  * What delivery did with a rule's last verdict, read from the notification
  * journal rather than from the rule's own state.
  */
+import { formatClock } from "@everr/ui/lib/timestamp";
 import { and, count, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { type AlertingDefaultTier, defaultTierFor } from "#app/data/alerting/delivery/defaults.ts";
 import type { AlertRuleRead } from "#app/data/alerting/rules/read.ts";
@@ -9,7 +10,7 @@ import { formatDurationSeconds } from "#app/data/alerting/rules/resource/window.
 import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
 import { db } from "#app/db/client.ts";
 import { alertDefaultChannels, alertEvents } from "#app/db/schema/index.ts";
-import { formatClock, formatElapsed } from "./format";
+import { formatElapsed } from "./format";
 
 export type NotificationFact = {
   eventType: string;
@@ -161,7 +162,7 @@ export type DeliveryFacts = {
  */
 export function notificationText(row: AlertRuleRead, delivery: DeliveryFacts, now: Date): string {
   if (row.degradedSince !== null) {
-    const since = row.lastErrorAt ? formatClock(row.lastErrorAt) : "the last attempt";
+    const since = row.lastErrorAt ? formatClock(row.lastErrorAt, "minute") : "the last attempt";
     const cap = row.spec.max_interval_secs
       ? ` · retry capped at ${formatDurationSeconds(row.spec.max_interval_secs)}`
       : "";

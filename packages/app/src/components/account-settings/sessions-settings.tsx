@@ -1,4 +1,5 @@
 /* oxlint-disable jsx-a11y/prefer-tag-over-role -- Preserve the existing status element and layout during the linter migration. */
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import {
@@ -97,7 +98,7 @@ export function SessionsSettings({
                       {session.ipAddress || "Unknown IP address"}
                       {" · Signed in "}
                       <time dateTime={new Date(session.createdAt).toISOString()}>
-                        {new Date(session.createdAt).toLocaleString()}
+                        {formatDateTime(session.createdAt, "minute")}
                       </time>
                     </p>
                   </div>

@@ -5,10 +5,3 @@ export function ChartEmptyState({ message }: { message: string }) {
     </div>
   );
 }
-
-export function formatChartDate(date: string): string {
-  return new Date(date).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-  });
-}
