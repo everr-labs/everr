@@ -72,12 +72,12 @@ vi.mock("@tanstack/react-start", () => ({
 vi.mock("#app/lib/clickhouse.ts", () => {
   const query = vi.fn();
   const querySqlApi = vi.fn();
-  const querySqlApiColumns = vi.fn();
+  const runSqlApiQuery = vi.fn();
 
   return {
     query,
     querySqlApi,
-    querySqlApiColumns,
+    runSqlApiQuery,
     createClickhouseQuery: vi.fn(
       (tenantId: number) => (sql: string, params?: Record<string, unknown>) =>
         query(sql, params, tenantId),
@@ -121,8 +121,15 @@ vi.mock("#app/lib/serverFn.ts", async () => {
                     querySqlApi<T>(sql, "test_org", params),
                   // Read at call time: suites that mock the ClickHouse module
                   // themselves export only what they use.
-                  queryColumns: (sql: string, params?: Record<string, unknown>) =>
-                    clickhouse.querySqlApiColumns(sql, "test_org", params),
+                  queryColumns: async (sql: string, params?: Record<string, unknown>) =>
+                    (
+                      await clickhouse.runSqlApiQuery(
+                        sql,
+                        "test_org",
+                        params,
+                        "JSONColumnsWithMetadata",
+                      )
+                    ).text(),
                 },
               }
             : {}),

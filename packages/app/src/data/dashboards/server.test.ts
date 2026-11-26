@@ -2,7 +2,7 @@ import { isNotFound } from "@tanstack/react-router";
 import type * as DrizzleOrm from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import { db } from "#app/db/client.ts";
-import { querySqlApi, querySqlApiColumns } from "#app/lib/clickhouse.ts";
+import { querySqlApi, runSqlApiQuery } from "#app/lib/clickhouse.ts";
 
 // Spy on `eq`/`isNull` while keeping every other drizzle-orm export real, so
 // the live-mode filter (`isNull(dashboards.previewId)`) is assertable without
@@ -92,7 +92,10 @@ const mockedDb = vi.mocked(db);
 // 7 days at ~500 points is a 30-minute step.
 const SEVEN_DAYS = { from: "2026-06-03T00:00:00.000Z", to: "2026-06-10T00:00:00.000Z" };
 const mockedClickhouse = vi.mocked(querySqlApi);
-const mockedPanelSql = vi.mocked(querySqlApiColumns);
+const mockedPanelSql = vi.mocked(runSqlApiQuery);
+const emptyColumns = { text: async () => '{"data":{}}' } as Awaited<
+  ReturnType<typeof runSqlApiQuery>
+>;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -108,7 +111,7 @@ beforeEach(() => {
 
 describe("runPanelQuery – variable interpolation", () => {
   it("interpolates variables into the SQL before executing", async () => {
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -132,7 +135,7 @@ describe("runPanelQuery – variable interpolation", () => {
   });
 
   it("expands the All sentinel using variableMeta options", async () => {
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -153,7 +156,7 @@ describe("runPanelQuery – variable interpolation", () => {
   });
 
   it("runs the SQL unchanged when no variables are provided", async () => {
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -167,7 +170,7 @@ describe("runPanelQuery – variable interpolation", () => {
   });
 
   it("binds from/to and an adaptive {step} bucket as query params", async () => {
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -187,7 +190,7 @@ describe("runPanelQuery – variable interpolation", () => {
   it("binds whole-second bounds, start rounded down and end rounded up", async () => {
     // The metrics tables keep TimeUnix as DateTime, which refuses a fractional
     // literal in a comparison, and a dashboard compares {from}/{to} directly.
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     await runPanelQuery({
       data: {
@@ -204,7 +207,7 @@ describe("runPanelQuery – variable interpolation", () => {
   });
 
   it("returns the exact window it queried so the panel axis matches the data", async () => {
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     const response = await runPanelQuery({
       data: {
@@ -223,7 +226,7 @@ describe("runPanelQuery – variable interpolation", () => {
   });
 
   it("starts a panel drawn over time on the step's grid and keeps its real end", async () => {
-    mockedPanelSql.mockResolvedValue('{"data":{}}');
+    mockedPanelSql.mockResolvedValue(emptyColumns);
 
     const response = await runPanelQuery({
       data: {
