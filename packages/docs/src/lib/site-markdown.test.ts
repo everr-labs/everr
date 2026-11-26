@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { baseLocale, overwriteGetLocale } from "@/paraglide/runtime";
-import { docsSections, llmsTxt, pricingMarkdown } from "./site-markdown";
+import { blogIndexMarkdown, docsSections, llmsTxt, pricingMarkdown } from "./site-markdown";
 
 const DOCS_INDEX = `# Docs
 
@@ -14,9 +14,18 @@ const DOCS_INDEX = `# Docs
   - [Debug Your CI](/docs/guides/debug-ci.md): Investigate CI failures.`;
 
 describe("llms.txt", () => {
-  const text = llmsTxt(DOCS_INDEX, [
-    { slug: "first", title: "First post", description: "What shipped.", date: "2026-05-01" },
-  ]);
+  const text = llmsTxt(
+    DOCS_INDEX,
+    [{ slug: "first", title: "First post", description: "What shipped.", date: "2026-05-01" }],
+    [
+      {
+        slug: "tracing",
+        title: "Tracing post",
+        description: "Why it matters.",
+        date: "2026-11-17",
+      },
+    ],
+  );
 
   it("follows the llms.txt layout: title, summary, guidance, then sections", () => {
     const lines = text.split("\n");
@@ -49,6 +58,40 @@ describe("llms.txt", () => {
   it("lists the devlog under Optional", () => {
     expect(text).toContain("## Optional");
     expect(text).toContain("- [First post](/devlog/first): What shipped.");
+  });
+
+  it("lists the blog under Optional", () => {
+    const optional = text.slice(text.indexOf("## Optional"));
+    expect(optional).toContain("- [Blog](/blog): ");
+    expect(optional).toContain("- [Tracing post](/blog/tracing): Why it matters.");
+  });
+});
+
+describe("blog index Markdown", () => {
+  it("lists each post with its date, link and description", () => {
+    const text = blogIndexMarkdown(
+      [
+        {
+          slug: "tracing",
+          title: "Tracing post",
+          description: "Why it matters.",
+          date: "2026-11-17",
+        },
+      ],
+      "en",
+    );
+    expect(text).toContain("# Everr Blog");
+    expect(text).toContain("- 2026-11-17: [Tracing post](/blog/tracing): Why it matters.");
+  });
+
+  it("answers in the requested language, with its URLs", () => {
+    const text = blogIndexMarkdown(
+      [{ slug: "tracing", title: "Post", description: "Perché conta.", date: "2026-11-17" }],
+      "it",
+    );
+    expect(text).toContain("# Everr Blog");
+    expect(text).toContain("Articoli su observability");
+    expect(text).toContain("- 2026-11-17: [Post](/it/blog/tracing): Perché conta.");
   });
 });
 

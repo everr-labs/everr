@@ -72,3 +72,28 @@ export function jsonLdScript(data: unknown) {
     children: JSON.stringify(data).replaceAll("<", "\\u003c"),
   };
 }
+
+type BlogPostingInput = {
+  url: string;
+  headline: string;
+  description: string;
+  datePublished: string;
+  dateModified: string;
+  author?: string;
+  image: string;
+  inLanguage: string;
+};
+
+// schema.org BlogPosting for one post in one language
+export function blogPostingStructuredData({ author, url, ...post }: BlogPostingInput) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    "@id": url,
+    mainEntityOfPage: url,
+    url,
+    ...post,
+    ...(author && { author: { "@type": "Person", name: author } }),
+    publisher: { "@id": ORGANIZATION_ID },
+  };
+}
