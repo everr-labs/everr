@@ -1,14 +1,11 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Check } from "lucide-react";
-import { motion, useInView } from "motion/react";
-import { type ReactNode, useRef } from "react";
+import { type ReactNode, type RefObject, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { sectionLead, sectionWrap } from "@/components/ui/type";
 import { BOOK_CALL_URL, SIGN_UP_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 import type { Locale } from "@/paraglide/runtime";
-
-const EASE = [0.22, 1, 0.36, 1] as const;
 
 // A paraglide message: no inputs, and an optional locale for the Markdown version of the page
 type Message = (inputs?: Record<string, never>, options?: { locale?: Locale }) => string;
@@ -94,9 +91,35 @@ const planName = "text-xl font-medium tracking-[-0.02em]";
 const price = "display text-[3.5rem] tabular-nums md:text-[4rem]";
 const groupLabel = "mt-8 border-t border-border pt-5 text-sm text-muted-foreground";
 
+// The cards rise in on load. When the page becomes interactive with them still
+// below the fold, they are held back, out of sight, and rise once scrolled into
+// view. Nothing is hidden unless this script is running to show it again.
+function useRiseWhenSeen(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let first = true;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (entry.isIntersecting) {
+          delete el.dataset.waiting;
+          io.disconnect();
+        } else if (first && entry.boundingClientRect.top >= window.innerHeight) {
+          el.dataset.waiting = "";
+        }
+        first = false;
+      },
+      { rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [ref]);
+}
+
 export function PricingCards() {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-10% 0px" });
+  useRiseWhenSeen(ref);
 
   return (
     <section className="relative overflow-x-clip bg-background text-foreground">
@@ -108,13 +131,12 @@ export function PricingCards() {
 
         <div ref={ref} className="mt-14 grid gap-5 md:mt-20 lg:grid-cols-3">
           {PRICING_PLANS.map((plan, i) => (
-            <motion.article
+            <article
               key={plan.id}
-              initial={{ opacity: 0, y: 24 }}
-              animate={inView ? { opacity: 1, y: 0 } : undefined}
-              transition={{ duration: 0.7, delay: 0.1 + i * 0.08, ease: EASE }}
+              style={{ animationDelay: `${0.1 + i * 0.08}s` }}
               className={cn(
                 card,
+                "rise-in-view",
                 plan.recommended ? "border-primary/60 bg-card" : "border-border bg-card/40",
               )}
             >
@@ -163,13 +185,11 @@ export function PricingCards() {
                   {plan.cta()}
                 </PricingCta>
               </div>
-            </motion.article>
+            </article>
           ))}
-          <motion.article
-            initial={{ opacity: 0, y: 24 }}
-            animate={inView ? { opacity: 1, y: 0 } : undefined}
-            transition={{ duration: 0.7, delay: 0.26, ease: EASE }}
-            className={cn(card, "border-border bg-card/40")}
+          <article
+            style={{ animationDelay: "0.26s" }}
+            className={cn(card, "rise-in-view border-border bg-card/40")}
           >
             <h2 className={planName}>Enterprise</h2>
             <p className={cn(price, "mt-5")}>{m.pricing_enterprise_price()}</p>
@@ -179,7 +199,7 @@ export function PricingCards() {
             <div className="mt-auto pt-12">
               <PricingCta href={BOOK_CALL_URL}>{m.pricing_enterprise_cta()}</PricingCta>
             </div>
-          </motion.article>
+          </article>
         </div>
       </div>
     </section>

@@ -5,8 +5,6 @@ import { Button } from "@/components/ui/button";
 import { SIGN_UP_URL } from "@/constants";
 import { m } from "@/paraglide/messages";
 
-const ease = [0.16, 1, 0.3, 1] as const;
-
 // How many letters one line of the headline holds at full size. A longer line, as some
 // languages need, sets the headline smaller so it still takes one line.
 const LINE_FITS = 19;
@@ -26,23 +24,16 @@ export function Hero() {
           {lines.map((line, i) => (
             // The clip is taller than the line box, so descenders survive the reveal
             <span key={line} className="-mb-[0.14em] block overflow-hidden pb-[0.14em]">
-              <motion.span
-                className="block"
-                initial={{ y: "110%" }}
-                animate={{ y: 0 }}
-                transition={{ duration: 0.9, delay: 0.05 + i * 0.09, ease }}
+              <span
+                className="block animate-[reveal_0.9s_var(--ease-out-expo)_both]"
+                style={{ animationDelay: `${0.05 + i * 0.09}s` }}
               >
                 {line}
-              </motion.span>
+              </span>
             </span>
           ))}
         </h1>
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.35, ease }}
-          className="mt-7 max-w-[30rem] md:mt-10"
-        >
+        <div className="mt-7 max-w-[30rem] animate-[rise_0.8s_var(--ease-out-expo)_0.35s_both] md:mt-10">
           <p className="text-lg leading-[1.5] text-pretty text-foreground/75 md:text-xl">
             {m.hero_lead()}
           </p>
@@ -63,14 +54,16 @@ export function Hero() {
               {m.hero_secondary()}
             </Button>
           </div>
-        </motion.div>
+        </div>
       </div>
 
-      {/* Pieces of an app with Everr keeping watch over them, running off the page's corner */}
+      {/* Pieces of an app with Everr keeping watch over them, running off the page's corner.
+          Unlike the text, it waits for hydration: the stage sizes itself in script, so shown
+          any earlier it would jump to its size. */}
       <motion.div
         initial={{ y: 40, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 1.3, delay: 0.4, ease }}
+        transition={{ duration: 1.3, delay: 0.4, ease: [0.16, 1, 0.3, 1] }}
         className="relative mt-8 ml-auto w-[min(100vw,30rem)] md:absolute md:right-0 md:bottom-0 md:mt-0 md:w-[clamp(30rem,min(53vw,(72svh-9.5rem)*1.41),95rem)]"
       >
         <HeroWatch />
