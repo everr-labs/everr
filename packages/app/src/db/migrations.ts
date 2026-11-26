@@ -36,6 +36,10 @@ export async function withMigrationLock(run: (database: MigrationDatabase) => Pr
         releaseError = error instanceof Error ? error : new Error(String(error));
       }
     }
-    client.release(releaseError);
+    // Destroy the connection rather than returning it to the pool. Its socket
+    // keeps the trace context it was opened in, so a later holder (such as
+    // graphile-worker's LISTEN client) would attach all of its work to the
+    // caller's startup span for the life of the process.
+    client.release(releaseError ?? true);
   }
 }
