@@ -22,38 +22,41 @@ const NAV_LINKS = [
 const focusRing =
   "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 
-// The header condenses a little way down the page and opens again only near
-// the very top. The gap between the two keeps it from flipping back and forth
-// when the page rests around one line.
-const CONDENSE_AT = 96;
-const EXPAND_AT = 32;
-
-function useScrolled() {
-  const [scrolled, setScrolled] = useState(false);
+// The header condenses a little way down the page (96px, the same line as
+// --scrolled in docs.css) and opens again only near the very top (32px). The
+// gap between the two keeps it from flipping back and forth when the page rests
+// around one line. The band spans that gap, so the observer reports only when
+// the page crosses one of its edges.
+function useCondense() {
+  const header = useRef<HTMLElement>(null);
+  const band = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const update = () => setScrolled((was) => window.scrollY > (was ? EXPAND_AT : CONDENSE_AT));
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    return () => window.removeEventListener("scroll", update);
+    const el = header.current;
+    const target = band.current;
+    if (!el || !target) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry) return;
+        if (!entry.isIntersecting) el.dataset.scrolled = "true";
+        else if (entry.boundingClientRect.top >= 0) el.dataset.scrolled = "false";
+        // Inside the band it keeps its state. Starting there, it is what CSS drew: open.
+        else el.dataset.scrolled ??= "false";
+      },
+      { threshold: [0, 1] },
+    );
+    io.observe(target);
+    return () => io.disconnect();
   }, []);
-  return scrolled;
+  return { header, band };
 }
 
-// A label that folds away sideways when the header condenses
-function Folding({
-  open,
-  className,
-  children,
-}: {
-  open: boolean;
-  className?: string;
-  children: ReactNode;
-}) {
+// A label that folds away sideways when the header condenses. The caller says
+// when, with `scrolled:` classes.
+function Folding({ className, children }: { className?: string; children: ReactNode }) {
   return (
     <span
       className={cn(
-        "grid transition-[grid-template-columns,opacity] duration-500 ease-out-expo",
-        open ? "grid-cols-[1fr] opacity-100" : "grid-cols-[0fr] opacity-0",
+        "grid grid-cols-[1fr] opacity-100 transition-[grid-template-columns,opacity] duration-500 ease-out-expo",
         className,
       )}
     >
@@ -62,14 +65,8 @@ function Folding({
   );
 }
 
-const ISLAND =
-  "h-12 border-white/12 bg-card/80 pr-1.5 pl-3.5 shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] backdrop-blur-xl";
-const ISLAND_ON_PHONES =
-  "max-md:h-12 max-md:border-white/12 max-md:bg-card/80 max-md:pr-1.5 max-md:pl-3.5 max-md:shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] max-md:backdrop-blur-xl";
-
 export function SiteHeader() {
   const { pathname } = useLocation();
-  const scrolled = useScrolled();
 
   // The docs keep a plain bar: their sidebar and page layout hang off its full width
   if (pathname.startsWith("/docs")) {
@@ -94,79 +91,77 @@ export function SiteHeader() {
               <span className="pl-0.5">everr</span>
             </Link>
             <DesktopLinks pathname={pathname} />
-            <Actions pathname={pathname} compact={false} />
+            <Actions pathname={pathname} />
           </nav>
         </div>
       </header>
     );
   }
 
-  // Everywhere else the header is part of the page at the top, tall, with the
-  // logo at size. Once the page moves it gathers into an island that floats
-  // over it. The header keeps its tall box either way, so nothing below shifts.
-  // A phone has no room for the tall one: there it is the island from the start,
-  // and the island keeps the wordmark.
+  return <IslandHeader pathname={pathname} />;
+}
+
+// Everywhere else the header is part of the page at the top, tall, with the
+// logo at size. Once the page moves it gathers into an island that floats
+// over it. The header keeps its tall box either way, so nothing below shifts.
+function IslandHeader({ pathname }: { pathname: string }) {
+  const { header, band } = useCondense();
   return (
-    <header id="nd-nav" className="pointer-events-none sticky top-0 z-40 h-16 md:h-24">
+    <>
       <div
-        className={cn(
-          "mx-auto transition-[max-width,padding] duration-500 ease-out-expo",
-          scrolled ? "max-w-[43rem] px-3 pt-2" : "max-w-7xl max-md:px-3 max-md:pt-2",
-        )}
+        ref={band}
+        aria-hidden="true"
+        className="pointer-events-none absolute top-8 left-0 h-16 w-px"
+      />
+      <header
+        ref={header}
+        id="nd-nav"
+        data-condense=""
+        className="pointer-events-none sticky top-0 z-40 h-16 md:h-24"
       >
-        <nav
-          aria-label={m.nav_main()}
-          className={cn(
-            "pointer-events-auto flex items-center gap-2 rounded-full border transition-[height,padding,background-color,border-color,box-shadow] duration-500 ease-out-expo",
-            scrolled ? ISLAND : `md:h-24 md:border-transparent md:px-6 ${ISLAND_ON_PHONES}`,
-          )}
-        >
-          <Link
-            to="/"
-            aria-label={m.nav_home()}
-            className={cn(
-              "flex items-center rounded-md font-heading font-semibold transition-[margin,font-size] duration-500 ease-out-expo",
-              scrolled
-                ? "mr-1 text-[26px]"
-                : "max-md:mr-1 max-md:text-[26px] md:mr-8 md:text-[40px]",
-              focusRing,
-            )}
+        <div className="mx-auto max-w-7xl transition-[max-width,padding] duration-500 ease-out-expo scrolled:max-w-[43rem] island:px-3 island:pt-2">
+          <nav
+            aria-label={m.nav_main()}
+            className="pointer-events-auto flex items-center gap-2 rounded-full border transition-[height,padding,background-color,border-color,box-shadow] duration-500 ease-out-expo md:h-24 md:border-transparent md:px-6 island:h-12 island:border-white/12 island:bg-card/80 island:pr-1.5 island:pl-3.5 island:shadow-[0_16px_40px_-12px_rgb(0_0_0/0.8)] island:backdrop-blur-xl"
           >
-            {/* The mark keeps an eye on the pointer */}
-            <Mascot
-              reach={30}
-              eyesClassName="fill-primary"
-              raysClassName="fill-primary"
+            <Link
+              to="/"
+              aria-label={m.nav_home()}
               className={cn(
-                "shrink-0 transition-[width,height] duration-500 ease-out-expo",
-                scrolled ? "size-7" : "size-7 md:size-11",
+                "flex items-center rounded-md font-heading font-semibold transition-[margin,font-size] duration-500 ease-out-expo",
+                "md:mr-8 md:text-[40px] island:mr-1 island:text-[26px]",
+                focusRing,
               )}
-            />
-            <Folding open={!scrolled} className="max-md:grid-cols-[1fr] max-md:opacity-100">
-              <span className="pl-0.5">everr</span>
-            </Folding>
-          </Link>
-          {/* Beside the big wordmark, the bar's middle is not where the eye puts it: the letters
+            >
+              {/* The mark keeps an eye on the pointer */}
+              <Mascot
+                reach={30}
+                eyesClassName="fill-primary"
+                raysClassName="fill-primary"
+                className="size-7 shrink-0 transition-[width,height] duration-500 ease-out-expo md:size-11 island:size-7"
+              />
+              {/* Phones keep the wordmark in the island */}
+              <Folding className="md:scrolled:grid-cols-[0fr] md:scrolled:opacity-0">
+                <span className="pl-0.5">everr</span>
+              </Folding>
+            </Link>
+            {/* Beside the big wordmark, the bar's middle is not where the eye puts it: the letters
               sit below it, and so does the body of the mark. The items drop to meet them. */}
-          <div
-            className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 transition-[translate] duration-500 ease-out-expo",
-              !scrolled && "md:translate-y-[3px]",
-            )}
-          >
-            <DesktopLinks pathname={pathname} />
-            <Actions pathname={pathname} compact={scrolled} />
-          </div>
-        </nav>
-      </div>
-    </header>
+            <div className="flex min-w-0 flex-1 items-center gap-2 transition-[translate] duration-500 ease-out-expo md:translate-y-[3px] scrolled:translate-y-0">
+              <DesktopLinks pathname={pathname} />
+              <Actions pathname={pathname} />
+            </div>
+          </nav>
+        </div>
+      </header>
+    </>
   );
 }
 
-function Actions({ pathname, compact }: { pathname: string; compact: boolean }) {
+function Actions({ pathname }: { pathname: string }) {
   return (
     <div className="ml-auto flex items-center gap-1">
-      <SearchButton compact={compact} />
+      <SearchButton />
       <GithubInfo
         aria-label={m.nav_github_label()}
         owner="everr-labs"
@@ -292,7 +287,7 @@ function DesktopLinks({ pathname }: { pathname: string }) {
   );
 }
 
-function SearchButton({ compact }: { compact: boolean }) {
+function SearchButton() {
   const { enabled, setOpenSearch } = useSearchContext();
   if (!enabled) return null;
 
@@ -308,7 +303,7 @@ function SearchButton({ compact }: { compact: boolean }) {
     >
       <Search className="size-4 shrink-0" aria-hidden="true" />
       <span className="max-lg:hidden">
-        <Folding open={!compact}>
+        <Folding className="scrolled:grid-cols-[0fr] scrolled:opacity-0">
           <span className="flex items-center gap-2 pl-2">
             {m.nav_search()}
             <kbd className="rounded-md border border-border px-1.5 py-0.5 font-sans text-[11px] leading-none text-foreground/50">
