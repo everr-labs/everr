@@ -18,6 +18,62 @@
   }
 }
 
+/* The site header condenses past 96px of scroll. CSS decides it until the page
+   is interactive, so the header is right before any script runs. Then the
+   header writes data-scrolled itself: that adds the gap before it opens again,
+   which CSS cannot keep since it has no memory of the previous state, and covers
+   browsers without scroll-driven animations or style queries. [data-condense]
+   in the variant lifts `scrolled:` classes over the expanded ones. */
+@property --scrolled {
+  syntax: "<integer>";
+  inherits: true;
+  initial-value: 0;
+}
+
+@keyframes header-condense {
+  to {
+    --scrolled: 1;
+  }
+}
+
+[data-condense] {
+  animation: header-condense linear both;
+  animation-timeline: scroll(root);
+  animation-range: 95px 96px;
+}
+
+[data-condense][data-scrolled] {
+  animation: none;
+}
+
+/* The scroll timeline resolves a frame after the header first gets its style,
+   so a reload halfway down would animate it into place. Nothing in it
+   transitions until the script has taken over. */
+[data-condense]:not([data-scrolled]) * {
+  transition: none;
+}
+
+@custom-variant scrolled {
+  &:is([data-condense][data-scrolled="true"] *) {
+    @slot;
+  }
+  @container style(--scrolled: 1) {
+    &:is([data-condense]:not([data-scrolled]) *) {
+      @slot;
+    }
+  }
+}
+
+/* A phone has no room for the tall header: there it is the island from the start */
+@custom-variant island {
+  @variant max-md {
+    @slot;
+  }
+  @variant scrolled {
+    @slot;
+  }
+}
+
 @layer base {
   *::selection {
     background-color: var(--primary);
