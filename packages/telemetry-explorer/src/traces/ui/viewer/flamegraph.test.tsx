@@ -133,3 +133,25 @@ it("shows a time guide over empty canvas space and updates its time after zoom",
   fireEvent.pointerLeave(canvas);
   expect(guide()).toBeNull();
 });
+
+it("adds up wheel zoom steps that arrive before the view re-renders", () => {
+  const props = {
+    model: { ...buildTraceModel([]), durationMs: 1000 },
+    layout: computeVisualLayout([]),
+    matchingIds: new Set<string>(),
+    filterActive: false,
+    colorBy: "service.name",
+    colors: new Map(),
+    range: { start: 0, end: 1000 },
+    onRangeChange: vi.fn(),
+    onSelect: vi.fn(),
+  };
+  const canvas = render(<TraceFlamegraph {...props} />).getByRole("img");
+  vi.spyOn(canvas, "getBoundingClientRect").mockReturnValue(DOMRect.fromRect({ width: 1000 }));
+  // Each step halves the width, anchored at the left edge.
+  const halve = { ctrlKey: true, deltaY: 100 * Math.log(0.5), clientX: 0 };
+  fireEvent.wheel(canvas, halve);
+  fireEvent.wheel(canvas, halve);
+  expect(props.onRangeChange).toHaveBeenNthCalledWith(1, { start: 0, end: 500 });
+  expect(props.onRangeChange).toHaveBeenNthCalledWith(2, { start: 0, end: 250 });
+});
