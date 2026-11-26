@@ -35,6 +35,17 @@ const ignorePatterns = [
   "packages/docs/src/components/monitoring-demo/kit/**",
 ];
 
+// Tailwind compiles `group-has-*` to a `:has()` that styles any descendant,
+// `*`. With one such rule in the global stylesheet, Chrome restyles the whole
+// page whenever an element is added anywhere, about 20ms on a busy page.
+// Overrides that set `eslint-js/no-restricted-syntax` replace its options, so
+// they list this entry again. The `[s]` keeps the pattern from matching itself.
+const noGroupHas = {
+  selector: "Literal[value=/group-ha[s]-/], TemplateElement[value.raw=/group-ha[s]-/]",
+  message:
+    "Tailwind's group-has variants make every DOM change restyle the whole page. Target the element itself: [[data-slot=x]:has(...)_&]:class.",
+};
+
 export default defineConfig({
   fmt: { ignorePatterns },
   lint: {
@@ -67,6 +78,7 @@ export default defineConfig({
         { propNamePattern: "{render*,cell,formatter,tick,background,itemContent}" },
       ],
       "preserve-caught-error": "error",
+      "eslint-js/no-restricted-syntax": ["error", noGroupHas],
       "vite-plus/prefer-vite-plus-imports": "error",
       "router/create-route-property-order": "error",
       "router/route-param-names": "error",
@@ -277,6 +289,7 @@ export default defineConfig({
         rules: {
           "eslint-js/no-restricted-syntax": [
             "error",
+            noGroupHas,
             {
               selector:
                 "Literal[value=/^x-everr-expected-organization$/i], TemplateElement[value.raw=/x-everr-expected-organization/i]",
