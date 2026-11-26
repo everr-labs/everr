@@ -10,7 +10,6 @@ import { cn } from "@everr/ui/lib/utils";
 import {
   type ReactNode,
   type Ref,
-  useCallback,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -178,42 +177,48 @@ export function TraceFlamegraph({
     [layout],
   );
 
-  // Synchronize an imperative drawing surface and its actual viewport size.
+  // The canvas takes the viewport's size only when that changes. Sizing it on
+  // every redraw, as a zoom step does, measured the layout and reallocated the
+  // canvas each time.
+  const drawRef = useRef(drawFlamegraph);
+  useLayoutEffect(() => {
+    // The first frame is drawn below, once the canvas has its size.
+    if (drawRef.current === drawFlamegraph) return;
+    drawRef.current = drawFlamegraph;
+    drawFlamegraph();
+  }, [drawFlamegraph]);
   useLayoutEffect(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
-    const draw = () => {
+    const resize = () => {
       const dpr = window.devicePixelRatio || 1;
       canvas.width = Math.max(1, Math.round(container.clientWidth * dpr));
       canvas.height = Math.max(1, Math.round(container.clientHeight * dpr));
       canvas.style.width = `${container.clientWidth}px`;
       canvas.style.height = `${container.clientHeight}px`;
-      drawFlamegraph();
+      drawRef.current();
     };
-    const observer = new ResizeObserver(draw);
+    const observer = new ResizeObserver(resize);
     observer.observe(container);
-    window.addEventListener("resize", draw);
-    draw();
+    // The screen's pixel ratio changes without a resize, on a move to another display.
+    window.addEventListener("resize", resize);
+    resize();
     return () => {
       observer.disconnect();
-      window.removeEventListener("resize", draw);
+      window.removeEventListener("resize", resize);
     };
-  }, [drawFlamegraph]);
+  }, []);
 
-  const zoom = useCallback(
-    (factor: number, anchor: number) => {
-      const full = model.durationMs;
-      const width = range.end - range.start;
-      const nextWidth = Math.min(full, Math.max(Math.min(full, 0.001), width * factor));
-      const nextStart = Math.max(
-        0,
-        Math.min(full - nextWidth, range.start + width * anchor - nextWidth * anchor),
-      );
-      onRangeChange({ start: nextStart, end: nextStart + nextWidth });
-    },
-    [model.durationMs, range, onRangeChange],
-  );
+  // The wheel listener is a native one, attached once, so it reads the view
+  // from here. A closure would hold the range of the render that attached it:
+  // trackpads send events between a commit and its effects, and steps taken
+  // from an older range made the view flip between two zoom levels. Each step
+  // also advances the range here, so steps within one frame add up.
+  const wheelRef = useRef({ range, full: model.durationMs, onRangeChange });
+  useLayoutEffect(() => {
+    wheelRef.current = { range, full: model.durationMs, onRangeChange };
+  });
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -222,14 +227,24 @@ export function TraceFlamegraph({
       if (!event.ctrlKey && !event.metaKey) return;
       event.preventDefault();
       const rect = canvas.getBoundingClientRect();
-      zoom(
-        Math.exp(event.deltaY * 0.01),
-        Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width)),
+      const anchor = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+      const view = wheelRef.current;
+      const { full, range: current } = view;
+      const width = current.end - current.start;
+      const nextWidth = Math.min(
+        full,
+        Math.max(Math.min(full, 0.001), width * Math.exp(event.deltaY * 0.01)),
       );
+      const start = Math.max(
+        0,
+        Math.min(full - nextWidth, current.start + width * anchor - nextWidth * anchor),
+      );
+      view.range = { start, end: start + nextWidth };
+      view.onRangeChange(view.range);
     };
     canvas.addEventListener("wheel", onWheel, { passive: false });
     return () => canvas.removeEventListener("wheel", onWheel);
-  }, [zoom]);
+  }, []);
 
   return (
     <div className="relative flex h-full min-h-0 flex-col">
