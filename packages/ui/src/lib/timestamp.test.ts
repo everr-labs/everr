@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   formatRelativeTime,
   formatClock,
@@ -41,6 +41,10 @@ describe("parseTimestampAsUTC", () => {
 });
 
 describe("time formatting", () => {
+  // "Nov 10" gains a year once the clock leaves 2026.
+  beforeEach(() => vi.useFakeTimers({ now: new Date(2026, 5, 1) }));
+  afterEach(() => vi.useRealTimers());
+
   it("is a zero-padded 24h clock, with no AM/PM", () => {
     const at = new Date(2026, 2, 7, 4, 5, 6, 78);
     expect(formatClock(at, "minute")).toBe("04:05");
@@ -50,11 +54,9 @@ describe("time formatting", () => {
   });
 
   it("shows the year only when it is not this year, unless told otherwise", () => {
-    vi.useFakeTimers({ now: new Date(2026, 5, 1) });
     expect(formatDay(new Date(2026, 10, 10))).toBe("Nov 10");
     expect(formatDay(new Date(2025, 10, 10))).toBe("Nov 10, 2025");
     expect(formatDay(new Date(2026, 10, 10), "always")).toBe("Nov 10, 2026");
-    vi.useRealTimers();
   });
 
   it("prints a window's end date only when it differs from the start's", () => {

@@ -46,10 +46,11 @@ export const LogRow = memo(function LogRow({
         "relative group grid w-full grid-cols-1 items-start py-0.5 text-left font-mono text-[0.75rem] hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/30 md:py-0",
         // The time column is as wide as its longest time, counted in
         // characters: the row's font is the cells' monospace one, so a `ch`
-        // is one of their characters. 16ch is "Nov 10, 12:54:11", 8ch
+        // is one of their characters. 19ch fits a localized day such as German
+        // "10. Sept., 12:54:11" (English "Nov 10, 12:54:11" is 16), 8ch
         // "12:54:11"; 0.75rem is the cell's left padding.
         withDay
-          ? "md:grid-cols-[calc(16ch+0.75rem)_minmax(0,1fr)]"
+          ? "md:grid-cols-[calc(19ch+0.75rem)_minmax(0,1fr)]"
           : "md:grid-cols-[calc(8ch+0.75rem)_minmax(0,1fr)]",
         isSelected && "bg-muted/70 hover:bg-muted/70",
       )}

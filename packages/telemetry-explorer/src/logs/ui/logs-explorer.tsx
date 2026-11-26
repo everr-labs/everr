@@ -166,7 +166,7 @@ const LogRowsSkeleton = memo(function LogRowsSkeleton({ withDay }: { withDay: bo
           className={cn(
             "grid grid-cols-1 py-0.5 font-mono text-[0.75rem] md:py-0",
             withDay
-              ? "md:grid-cols-[calc(16ch+0.75rem)_minmax(0,1fr)]"
+              ? "md:grid-cols-[calc(19ch+0.75rem)_minmax(0,1fr)]"
               : "md:grid-cols-[calc(8ch+0.75rem)_minmax(0,1fr)]",
           )}
         >
