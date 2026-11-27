@@ -8,7 +8,7 @@
  * the components see, without a database. `server.ts` loads and calls; the
  * tests build the inputs by hand and call.
  */
-import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { formatClock, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { AlertingDefaultTier } from "#app/data/alerting/delivery/defaults.ts";
 import {
   ANN_ALERTING_DESCRIPTION,
@@ -35,7 +35,7 @@ import { formatDurationSeconds } from "#app/data/alerting/rules/resource/window.
 import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
 import type { AlertingEvaluationSample, AlertingSeverity } from "#app/data/alerting/types.ts";
 import { ALERTING_SEVERITIES } from "#app/data/alerting/vocabulary.ts";
-import { formatClock, formatElapsed, formatSince, formatSincePhrase, formatValue } from "./format";
+import { formatElapsed, formatSince, formatSincePhrase, formatValue } from "./format";
 import {
   type LifecycleEventRow,
   lifecycleLine,
@@ -352,7 +352,7 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
   const timeline: LifecycleEvent[] = input.timeline.map((row, index) => {
     const at = parseTimestampAsUTC(row.event_time);
     return {
-      time: at ? formatClock(at) : null,
+      time: at ? formatClock(at, "minute") : null,
       text: lifecycleLine(row),
       ...(index === 0 ? { current: true } : {}),
     };

@@ -29,7 +29,7 @@ import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { progressToast } from "#app/lib/progress-toast.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
 import { EditKeyOriginsDialog } from "#app/components/api-keys/edit-key-origins-dialog.tsx";
-import { formatDate } from "#app/components/users-management/format-date.ts";
+import { formatDateTime, formatDay, formatRelativeTime } from "@everr/ui/lib/timestamp";
 import {
   API_KEY_SCOPES,
   type ApiKeyPermissions,
@@ -40,34 +40,6 @@ import { type ApiKey, useRevokeApiKey } from "./queries";
 import { SCOPE_ICONS } from "./scope-meta";
 
 type RevokeFn = (row: ApiKey) => void;
-
-const RELATIVE = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
-const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
-  ["year", 31_536_000],
-  ["month", 2_592_000],
-  ["week", 604_800],
-  ["day", 86_400],
-  ["hour", 3_600],
-  ["minute", 60],
-];
-
-function relativeFromNow(value?: string | Date | null): string | null {
-  if (!value) return null;
-  const then = new Date(value).getTime();
-  if (Number.isNaN(then)) return null;
-  const seconds = Math.round((then - Date.now()) / 1000);
-  const abs = Math.abs(seconds);
-  for (const [unit, secs] of RELATIVE_UNITS) {
-    if (abs >= secs) return RELATIVE.format(Math.round(seconds / secs), unit);
-  }
-  return "just now";
-}
-
-function exactDate(value: string | Date) {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toLocaleString();
-}
 
 function permissionsOf(row: ApiKey): ApiKeyPermissions {
   const raw = row.permissions;
@@ -198,16 +170,15 @@ function AllowedOrigins({ row }: { row: ApiKey }) {
 
 function LastUsed({ row }: { row: ApiKey }) {
   const value = row.lastRequest;
-  const relative = relativeFromNow(value);
-  if (!relative || !value) {
+  if (!value) {
     return <span className="text-muted-foreground whitespace-nowrap">Never used</span>;
   }
   return (
     <Tooltip>
       <TooltipTrigger render={<span className="cursor-default whitespace-nowrap" />}>
-        {relative}
+        {formatRelativeTime(value)}
       </TooltipTrigger>
-      <TooltipContent>{exactDate(value)}</TooltipContent>
+      <TooltipContent>{formatDateTime(value, "second", "always")}</TooltipContent>
     </Tooltip>
   );
 }
@@ -222,17 +193,17 @@ function Expiry({ row }: { row: ApiKey }) {
         <TooltipTrigger render={<span className="text-destructive cursor-default font-medium" />}>
           Expired
         </TooltipTrigger>
-        <TooltipContent>{exactDate(value)}</TooltipContent>
+        <TooltipContent>{formatDateTime(value, "second", "always")}</TooltipContent>
       </Tooltip>
     );
   }
-  return <span className="whitespace-nowrap">{formatDate(value)}</span>;
+  return <span className="whitespace-nowrap">{formatDay(value, "always")}</span>;
 }
 
 function Created({ row }: { row: ApiKey }) {
   return (
     <span className="text-muted-foreground whitespace-nowrap">
-      {row.createdAt ? formatDate(row.createdAt) : "Unknown"}
+      {row.createdAt ? formatDay(row.createdAt, "always") : "Unknown"}
     </span>
   );
 }

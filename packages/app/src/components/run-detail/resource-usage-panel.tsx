@@ -1,3 +1,4 @@
+import { formatClock } from "@everr/ui/lib/timestamp";
 import { kickerClass } from "@everr/ui/lib/typography";
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { cn } from "@everr/ui/lib/utils";
@@ -5,7 +6,7 @@ import { useMemo } from "react";
 import { seriesValueAxis } from "#app/components/dashboards/visualizations/echarts/axis.ts";
 import { createValueFormatter } from "#app/components/dashboards/visualizations/value-format.ts";
 import type { JobResourceUsage, ResourceUsagePoint } from "#app/data/resource-usage.ts";
-import { formatBytes, formatPercent, formatTimeOfDay } from "#app/lib/formatting.ts";
+import { formatBytes, formatPercent } from "#app/lib/formatting.ts";
 
 interface ResourceUsagePanelProps {
   data: JobResourceUsage;
@@ -105,7 +106,7 @@ function MiniChart({
         unit === "percent"
           ? PERCENT_AXES
           : speedAxes(Math.max(0, ...keys.flatMap((key) => points.map((point) => point[key])))),
-      labels: points.map((point) => formatTimeOfDay(point.timestamp)),
+      labels: points.map((point) => formatClock(point.timestamp)),
       series: keys.map((key): ChartSeries => ({
         id: key,
         ...SERIES_META[key],

@@ -1,5 +1,5 @@
 import { Button } from "@everr/ui/components/button";
-import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { formatDateTime, formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ErrorIssueSummary } from "../data/types";
@@ -87,7 +87,7 @@ function Count({ value, one, many }: { value: number; one: string; many: string 
 function Seen({ label, timestamp }: { label: string; timestamp: string }) {
   const date = parseTimestampAsUTC(timestamp);
   return (
-    <span title={date ? date.toLocaleString() : timestamp}>
+    <span title={date ? formatDateTime(date) : timestamp}>
       {label} <span className="text-foreground">{formatRelativeTime(timestamp)}</span>
     </span>
   );

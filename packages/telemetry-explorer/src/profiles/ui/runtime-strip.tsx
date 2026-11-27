@@ -1,7 +1,8 @@
+import { formatClock } from "@everr/ui/lib/timestamp";
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { bucketTime, bucketTitle } from "../../histogram/volume-histogram";
+import { bucketTitle } from "../../histogram/volume-histogram";
 import type { ProfileFilterInput } from "../data/schemas";
 import {
   GC_TYPES,
@@ -60,7 +61,7 @@ export function RuntimeStrip({
     () =>
       buckets
         ? {
-            labels: buckets.map((bucket) => bucketTime(new Date(bucket.timestamp))),
+            labels: buckets.map((bucket) => formatClock(bucket.timestamp, "minute")),
             titles: buckets.map(bucketTitle),
           }
         : undefined,

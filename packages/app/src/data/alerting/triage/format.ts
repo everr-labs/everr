@@ -56,14 +56,6 @@ export function formatLabels(labels: Record<string, string>): string {
   return entries.map(([k, v]) => `${k}=${v}`).join(" ");
 }
 
-export function formatClock(at: Date): string {
-  return at.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
 /**
  * What a silence did to delivery, in the history's own two words. A hold is
  * a notification the silence is sitting on and may still let through when it

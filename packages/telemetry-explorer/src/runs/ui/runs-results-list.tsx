@@ -3,7 +3,7 @@ import { RetryError } from "@everr/ui/components/retry-error";
 import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { formatDateTime, formatRelativeTime } from "@everr/ui/lib/timestamp";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { RunListItem } from "../schemas";
@@ -203,7 +203,7 @@ function RunRow({
         {/* Anchor above and to the end so it sits over the right-aligned value
             instead of floating across the wide cell into the Duration column. */}
         <TooltipContent side="top" align="end">
-          {new Date(run.timestamp).toLocaleString()}
+          {formatDateTime(run.timestamp)}
         </TooltipContent>
       </Tooltip>
       {renderRowActions ? (

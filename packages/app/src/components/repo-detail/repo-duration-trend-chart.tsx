@@ -1,4 +1,5 @@
-import { ChartEmptyState, formatChartDate } from "@everr/ui/components/chart-helpers";
+import { formatDay } from "@everr/ui/lib/timestamp";
+import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
 import { SeriesChart } from "@everr/ui/components/series-chart";
 import { formatDurationCompact } from "@everr/ui/lib/formatting";
 import { useMemo } from "react";
@@ -19,8 +20,8 @@ export function RepoDurationTrendChart({ data }: RepoDurationTrendChartProps) {
     // Ticks round in the displayed unit (e.g. 0.5 min), not in milliseconds.
     const max = Math.max(0, ...p50, ...p95);
     return {
-      labels: data.map((point) => formatChartDate(point.date)),
-      titles: data.map((point) => new Date(point.date).toLocaleDateString()),
+      labels: data.map((point) => formatDay(point.date, "never")),
+      titles: data.map((point) => formatDay(point.date, "always")),
       axes: {
         left: seriesValueAxis(DURATION, max, formatDurationCompact),
       },

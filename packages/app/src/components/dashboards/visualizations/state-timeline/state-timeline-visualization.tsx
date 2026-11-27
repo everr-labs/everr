@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { ChartGantt } from "lucide-react";
 import { useMemo } from "react";
 import type { VisualizationProps } from "../index";
@@ -32,7 +33,7 @@ export function StateTimelineVisualization({
           start: s.start,
           end: s.end,
           state: s.state,
-          title: `${new Date(s.start).toLocaleString()} – ${new Date(s.end).toLocaleString()}`,
+          title: `${formatDateTime(s.start)} – ${formatDateTime(s.end)}`,
         })),
       })),
     [model],

@@ -13,7 +13,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { progressToast } from "#app/lib/progress-toast.ts";
-import { formatDate } from "./format-date";
+import { formatDay } from "@everr/ui/lib/timestamp";
 import { useRevokeInvitation } from "./queries";
 import type { Invitation } from "./queries";
 
@@ -44,7 +44,7 @@ export function InvitationsTable({ invitations }: InvitationsTableProps) {
     },
     {
       header: "Expires",
-      cell: (row) => formatDate(row.expiresAt),
+      cell: (row) => formatDay(row.expiresAt, "always"),
     },
     {
       header: <span className="sr-only">Actions</span>,

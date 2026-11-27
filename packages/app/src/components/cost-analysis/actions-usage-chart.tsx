@@ -1,3 +1,4 @@
+import { formatClock, formatDateTime, formatDay } from "@everr/ui/lib/timestamp";
 import { ChartEmptyState } from "@everr/ui/components/chart-helpers";
 import { type ChartSeries, SeriesChart } from "@everr/ui/components/series-chart";
 import { useMemo } from "react";
@@ -7,7 +8,6 @@ import {
   type CostOverTimeBreakdown,
 } from "#app/data/cost-analysis/schemas.ts";
 import { formatCost } from "#app/lib/runner-pricing.ts";
-import { formatBucket } from "./format-bucket";
 
 export type ActionsUsageDimension = "repo" | "runner";
 
@@ -36,9 +36,15 @@ export function ActionsUsageChart({ data, metric }: ActionsUsageChartProps) {
   const chart = useMemo(() => {
     const field = metric === "spend" ? "cost" : "minutes";
     const keys = data.hasOther ? [...data.topKeys, BREAKDOWN_OTHER_KEY] : data.topKeys;
+    // Buckets start on the viewer's clock, so they are labelled in the viewer's zone.
+    const hourly = data.granularity === "hour";
     return {
-      labels: data.points.map((point) => formatBucket(point.date, data.granularity, "axis")),
-      titles: data.points.map((point) => formatBucket(point.date, data.granularity, "tooltip")),
+      labels: data.points.map((point) =>
+        hourly ? formatClock(point.date, "minute") : formatDay(point.date, "never"),
+      ),
+      titles: data.points.map((point) =>
+        hourly ? formatDateTime(point.date, "minute") : formatDay(point.date, "always"),
+      ),
       series: keys.map((key, index): ChartSeries => ({
         id: key,
         label: key === BREAKDOWN_OTHER_KEY ? "Other" : key,

@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { chartLabel } from "@everr/ui/lib/chart-label";
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
@@ -309,7 +310,7 @@ export function TimeSeriesChartVisualization({
       {tooltipRow && tooltipState && tooltipTs !== undefined && (
         <CursorTooltip x={tooltipState.x} y={tooltipState.y}>
           <SeriesTooltipContent
-            title={new Date(tooltipTs).toLocaleString()}
+            title={formatDateTime(tooltipTs)}
             // `nearestKeys` calls out the row the pointer is on, so overlapping
             // series can be told apart by aiming at one of them.
             rows={seriesTooltipRows(

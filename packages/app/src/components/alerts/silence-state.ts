@@ -3,6 +3,7 @@
  * state, which states are still open, and how its window prints. Shared so
  * the detail's list and the Silences page cannot drift apart on the same row.
  */
+import { formatWindowBounds } from "@everr/ui/lib/timestamp";
 import type { AlertSilenceRecord } from "#app/data/alerting/triage/view.ts";
 
 type SilenceState = AlertSilenceRecord["state"];
@@ -41,20 +42,6 @@ export const STATE_META: Record<SilenceState, { label: string; dot: string; text
 
 export const isOpen = (state: SilenceState) => state === "active" || state === "scheduled";
 
-// Built once: a formatter is a locale lookup and a table, and a page of two
-// hundred rows printing two bounds each would otherwise build hundreds per
-// render.
-const DAY = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-});
-const CLOCK = new Intl.DateTimeFormat(undefined, {
-  hour: "2-digit",
-  minute: "2-digit",
-  second: "2-digit",
-  hour12: false,
-});
-
 /**
  * Both bounds of the window, to the second. Whether a given notification fell
  * inside it is what a silence row gets read for, and a bound rounded to the
@@ -72,23 +59,15 @@ export function windowBounds(
   start: { iso: string; text: string };
   end: { iso: string; text: string };
 } {
-  const start = new Date(record.startsAt);
   // Cancelling collapses `ends_at` to the cancel instant, give or take the
   // transaction that wrote it. That jitter is under a second and invisible
   // until the bounds are printed to one, so a cancelled window closes at the
   // stamp that recorded the act rather than at the window it overwrote.
   const endIso = record.canceledAt ?? record.endsAt;
-  const end = new Date(endIso);
-  const sameDay = start.toDateString() === end.toDateString();
+  const [start, end] = formatWindowBounds(record.startsAt, endIso);
   return {
-    start: {
-      iso: record.startsAt,
-      text: `${DAY.format(start)}, ${CLOCK.format(start)}`,
-    },
-    end: {
-      iso: endIso,
-      text: sameDay ? CLOCK.format(end) : `${DAY.format(end)}, ${CLOCK.format(end)}`,
-    },
+    start: { iso: record.startsAt, text: start },
+    end: { iso: endIso, text: end },
   };
 }
 

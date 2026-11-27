@@ -1,3 +1,4 @@
+import { formatDateTime } from "../lib/timestamp";
 import { isValid, parse, resolve } from "@everr/datemath";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { CheckIcon, ChevronDownIcon, Clock, XIcon } from "lucide-react";
@@ -145,16 +146,6 @@ function toStored(expr: string): string {
   return isAbsolute(expr) ? new Date(Date.parse(normalize(expr))).toISOString() : expr.trim();
 }
 
-function formatAbsolute(date: Date): string {
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    ...(date.getFullYear() === new Date().getFullYear() ? {} : { year: "numeric" }),
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
 export function formatTimeRangeDisplay(range: TimeRange): string {
   const preset = QUICK_RANGES.find((q) => q.from === range.from && q.to === range.to);
   if (preset) return preset.label;
@@ -163,7 +154,7 @@ export function formatTimeRangeDisplay(range: TimeRange): string {
   if (relative) return relative.label;
   // Two plain dates (a picked or zoomed range) read as local times.
   if (isAbsolute(range.from) && isAbsolute(range.to)) {
-    return `${formatAbsolute(new Date(Date.parse(range.from)))} – ${formatAbsolute(new Date(Date.parse(range.to)))}`;
+    return `${formatDateTime(Date.parse(range.from), "minute")} – ${formatDateTime(Date.parse(range.to), "minute")}`;
   }
   return `${range.from} to ${range.to}`;
 }
@@ -173,7 +164,7 @@ export { isValid as isValidDatemath };
 function resolvePreview(expr: string, roundUp: boolean): { date: Date; label: string } | null {
   try {
     const date = resolve(normalize(expr), { roundUp });
-    return { date, label: formatAbsolute(date) };
+    return { date, label: formatDateTime(date, "minute") };
   } catch {
     return null;
   }

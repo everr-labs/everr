@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import type { SeriesTooltipRow } from "@everr/ui/components/series-tooltip";
 import { useCallback, useState } from "react";
 import { formatValue } from "#app/data/alerting/triage/format.ts";
@@ -124,7 +125,7 @@ export function pointNear(
  *  it. "3.0d ago" is the axis's unit, not a tooltip's: a responder comparing
  *  the chart against a log needs the time itself. */
 export function tooltipTime(windowTo: number, minutesAgo: number) {
-  return new Date(windowTo - minutesAgo * 60_000).toLocaleString();
+  return formatDateTime(windowTo - minutesAgo * 60_000);
 }
 
 /**

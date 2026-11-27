@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   formatRelativeTime,
-  formatTimestampTimeOfDay,
+  formatClock,
+  formatDay,
+  formatWindowBounds,
   parseTimestampAsUTC,
   formatRowTimestamp,
 } from "./timestamp";
@@ -38,15 +40,35 @@ describe("parseTimestampAsUTC", () => {
   });
 });
 
-describe("formatTimestampTimeOfDay", () => {
-  it("returns a placeholder for invalid timestamps", () => {
-    expect(formatTimestampTimeOfDay("not-a-date")).toBe("—");
+describe("time formatting", () => {
+  // "Nov 10" gains a year once the clock leaves 2026.
+  beforeEach(() => vi.useFakeTimers({ now: new Date(2026, 5, 1) }));
+  afterEach(() => vi.useRealTimers());
+
+  it("is a zero-padded 24h clock, with no AM/PM", () => {
+    const at = new Date(2026, 2, 7, 4, 5, 6, 78);
+    expect(formatClock(at, "minute")).toBe("04:05");
+    expect(formatClock(at, "millisecond")).toBe("04:05:06.078");
+    expect(formatClock(new Date(2026, 2, 7, 14, 54, 11))).toBe("14:54:11");
+    expect(formatClock("not-a-date")).toBe("—");
   });
 
-  it("formats a valid timestamp as a localized time string", () => {
-    const result = formatTimestampTimeOfDay("2026-03-07T13:32:00Z");
-    expect(result).not.toBe("—");
-    expect(typeof result).toBe("string");
+  it("shows the year only when it is not this year, unless told otherwise", () => {
+    expect(formatDay(new Date(2026, 10, 10))).toBe("Nov 10");
+    expect(formatDay(new Date(2025, 10, 10))).toBe("Nov 10, 2025");
+    expect(formatDay(new Date(2026, 10, 10), "always")).toBe("Nov 10, 2026");
+  });
+
+  it("prints a window's end date only when it differs from the start's", () => {
+    const at = (d: number, h: number) => new Date(2026, 10, d, h);
+    expect(formatWindowBounds(at(10, 14), at(10, 16), "minute")).toEqual([
+      "Nov 10, 14:00",
+      "16:00",
+    ]);
+    expect(formatWindowBounds(at(10, 22), at(11, 2), "minute")).toEqual([
+      "Nov 10, 22:00",
+      "Nov 11, 02:00",
+    ]);
   });
 });
 
@@ -74,10 +96,8 @@ describe("formatRowTimestamp", () => {
   const at = new Date(2026, 10, 10, 14, 54, 11);
 
   it("gives the time alone, or the day too when asked", () => {
-    expect(formatRowTimestamp(at.toISOString(), false)).toBe(at.toLocaleTimeString());
-    expect(formatRowTimestamp(at.toISOString(), true)).toBe(
-      `${at.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${at.toLocaleTimeString()}`,
-    );
+    expect(formatRowTimestamp(at.toISOString(), false)).toBe("14:54:11");
+    expect(formatRowTimestamp(at.toISOString(), true)).toBe("Nov 10, 14:54:11");
   });
 });
 

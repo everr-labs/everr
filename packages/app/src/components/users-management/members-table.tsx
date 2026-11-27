@@ -23,7 +23,7 @@ import {
 } from "@everr/ui/components/select";
 import { useState } from "react";
 import { progressToast } from "#app/lib/progress-toast.ts";
-import { formatDate } from "./format-date";
+import { formatDay } from "@everr/ui/lib/timestamp";
 import { type Member, type OrgRole, useRemoveMember, useUpdateMemberRole } from "./queries";
 
 interface MembersTableProps {
@@ -132,7 +132,7 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
     },
     {
       header: "Joined",
-      cell: (row) => formatDate(row.createdAt),
+      cell: (row) => formatDay(row.createdAt, "always"),
     },
     {
       header: <span className="sr-only">Actions</span>,

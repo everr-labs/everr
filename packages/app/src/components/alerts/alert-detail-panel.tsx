@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { Button } from "@everr/ui/components/button";
 import { CodeBlock } from "@everr/ui/components/code-block";
 import { HighlightedCode } from "@everr/ui/components/highlighted-code";
@@ -372,10 +373,7 @@ export function AlertDetailPanel({
               )}
               <DefinitionRow label="Last evaluated">
                 {detail.definition.lastEvaluatedAt
-                  ? new Date(detail.definition.lastEvaluatedAt).toLocaleString(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })
+                  ? formatDateTime(detail.definition.lastEvaluatedAt, "minute", "always")
                   : "Never"}
               </DefinitionRow>
             </dl>

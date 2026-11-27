@@ -1,3 +1,4 @@
+import { formatDateTime } from "@everr/ui/lib/timestamp";
 import { describe, expect, it } from "vite-plus/test";
 import type { InstanceValuePoint } from "#app/data/alerting/triage/view.ts";
 import {
@@ -65,13 +66,13 @@ describe("the instant the tooltip names", () => {
   it("prints a clock time, not a distance", () => {
     const windowTo = new Date("2026-08-21T12:00:00Z").getTime();
 
-    expect(tooltipTime(windowTo, 30)).toBe(new Date("2026-08-21T11:30:00Z").toLocaleString());
+    expect(tooltipTime(windowTo, 30)).toBe(formatDateTime(new Date("2026-08-21T11:30:00Z")));
   });
 
   it("stands at the window's own end for a distance of nothing", () => {
     const windowTo = new Date("2026-08-21T12:00:00Z").getTime();
 
-    expect(tooltipTime(windowTo, 0)).toBe(new Date(windowTo).toLocaleString());
+    expect(tooltipTime(windowTo, 0)).toBe(formatDateTime(windowTo));
   });
 });
 

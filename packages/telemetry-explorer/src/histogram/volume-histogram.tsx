@@ -1,3 +1,4 @@
+import { formatClock, formatDay } from "@everr/ui/lib/timestamp";
 import {
   Collapsible,
   CollapsibleContent,
@@ -24,16 +25,12 @@ function formatCount(value: number) {
   return value.toLocaleString();
 }
 
-export function bucketTime(date: Date) {
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
 // Tooltip heading: date + local time range, computed from the bucket's
 // timestamps so it always reflects the viewer's timezone.
 export function bucketTitle(bucket: HistogramBucket) {
   const start = new Date(bucket.timestamp);
-  const day = start.toLocaleDateString([], { month: "short", day: "numeric" });
-  return `${day} · ${bucketTime(start)} – ${bucketTime(new Date(bucket.endTimestamp))}`;
+  const end = new Date(bucket.endTimestamp);
+  return `${formatDay(start, "never")} · ${formatClock(start, "minute")} – ${formatClock(end, "minute")}`;
 }
 
 // Tick spacings, in minutes: the first that puts at most MAX_TICKS on the
@@ -47,7 +44,7 @@ const minutesOfLocal = (ms: number) =>
 /**
  * Axis labels on round local times: a tick on each bucket where a new step
  * (an hour, 6 hours, a day) begins, and "" elsewhere. A tick at midnight
- * names the day, so a multi-day range reads "Nov 10 · 12:00 PM · Nov 11".
+ * names the day, so a multi-day range reads "Nov 10 · 12:00 · Nov 11".
  */
 export function axisLabels(buckets: readonly HistogramBucket[]): string[] {
   const first = buckets[0];
@@ -67,8 +64,8 @@ export function axisLabels(buckets: readonly HistogramBucket[]): string[] {
     // The round time the tick stands for: the bucket's start, or just before.
     const at = new Date(start - (minutes - period * step) * 60_000);
     return at.getHours() === 0 && at.getMinutes() === 0
-      ? at.toLocaleDateString([], { month: "short", day: "numeric" })
-      : bucketTime(at);
+      ? formatDay(at, "never")
+      : formatClock(at, "minute");
   });
 }
 

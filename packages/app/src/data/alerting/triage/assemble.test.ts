@@ -9,6 +9,7 @@ vi.mock("#app/db/client.ts", () => ({
   runInTransaction: () => Promise.resolve(),
 }));
 
+import { formatClock } from "@everr/ui/lib/timestamp";
 import type { AlertInstanceRead, AlertRuleRead } from "#app/data/alerting/rules/read.ts";
 import type { SilenceRow } from "#app/data/alerting/silences/repository.ts";
 import type { AlertingRuleSpec } from "#app/data/alerting/types.ts";
@@ -20,7 +21,6 @@ import {
   type RuleStateHistoryInput,
   type TriageInput,
 } from "./assemble";
-import { formatClock } from "./format";
 import type { NotificationFact } from "./notifications";
 import type { InstanceValues } from "./values";
 import type { InstanceValueSeries } from "./view";
@@ -611,7 +611,7 @@ describe("assembleAlertDetail", () => {
     });
     expect(out.timeline).toEqual([
       {
-        time: formatClock(new Date("2026-08-21T11:50:00Z")),
+        time: formatClock(new Date("2026-08-21T11:50:00Z"), "minute"),
         text: "instance_fired · a",
         current: true,
       },

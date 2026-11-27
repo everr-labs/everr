@@ -1,4 +1,4 @@
-import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { formatClock, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import type { ParsedLogLine } from "./log-parser";
 
 export interface LogVolumeBin {
@@ -26,22 +26,6 @@ function calculateBinSize(durationMs: number): number {
 }
 
 /**
- * Format bin time label based on bin size
- */
-function formatTimeLabel(date: Date, binSizeMs: number): string {
-  if (binSizeMs < 60_000) {
-    // Seconds-level precision
-    return date.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  }
-  // Minute-level precision
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-}
-
-/**
  * Aggregate parsed log lines into time bins for charting
  */
 export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
@@ -61,7 +45,7 @@ export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
 
   // Handle edge case: all logs at same timestamp
   if (duration === 0) {
-    const bin = createEmptyBin(formatTimeLabel(new Date(minTime), 5_000), minTime, 0);
+    const bin = createEmptyBin(formatClock(minTime, "second"), minTime, 0);
     for (const line of lines) {
       if (!line.isGroupEnd) {
         incrementBinCount(bin, line);
@@ -77,7 +61,9 @@ export function aggregateLogVolume(lines: ParsedLogLine[]): LogVolumeBin[] {
   // Create empty bins
   for (let i = 0; i < binCount; i++) {
     const binStart = minTime + i * binSize;
-    bins.push(createEmptyBin(formatTimeLabel(new Date(binStart), binSize), binStart, -1));
+    bins.push(
+      createEmptyBin(formatClock(binStart, binSize < 60_000 ? "second" : "minute"), binStart, -1),
+    );
   }
 
   // Populate bins with log counts and track first line index per bin
