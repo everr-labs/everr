@@ -1,5 +1,27 @@
 # @everr/app-cloud
 
+## 0.13.0
+
+### Patch Changes
+
+- c88872a: Zooming a trace or profile flamegraph with a trackpad pinch or Ctrl and the scroll wheel no longer jumps back and forth between two zoom levels. Fast scrolling now zooms smoothly in one direction, and each zoom step draws faster.
+- e02352b: TimeSeriesChart panels accept a `colors` map that pins a series to a fixed hex color by name, the same option BarChart and StatChart already have. Series it doesn't name keep their palette color. The Telemetry Usage dashboard uses it so each signal has the same color in "Usage by signal" and "Ingestion volume by signal".
+- 893189f: The Telemetry Usage dashboard now counts profiles. Profiles get their own series in "Usage by signal" and "Ingestion volume by signal", and their volume is included in the usage summary and the cumulative chart.
+- Updated dependencies [de18796]
+- Updated dependencies [81118df]
+- Updated dependencies [dfa70b2]
+- Updated dependencies [c88872a]
+- Updated dependencies [1b11f46]
+- Updated dependencies [b075a38]
+- Updated dependencies [613692f]
+- Updated dependencies [69afc01]
+- Updated dependencies [7de8f6d]
+- Updated dependencies [f7c6638]
+- Updated dependencies [94fc719]
+- Updated dependencies [156b94e]
+- Updated dependencies [e02352b]
+  - @everr/app@0.13.0
+
 ## 0.12.0
 
 ### Patch Changes

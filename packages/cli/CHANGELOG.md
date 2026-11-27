@@ -1,5 +1,35 @@
 # @everr/cli
 
+## 0.13.0
+
+### Minor Changes
+
+- 8e98eb9: The local store behind `everr local start` now has the same tables as Everr Cloud and self-hosted installations. A query that works against one works against the other. `logs`, `traces`, `traces_trace_id_ts` and the `metrics_*` tables keep their names and gain the `tenant_id` and `retention_days` columns. `SHOW TABLES` also lists `alert_events`, which stays empty locally, and the materialized views that fill the tables.
+
+  The first `everr local start` after this update deletes the telemetry that the previous version stored locally. Local telemetry is kept for 7 days at most, so nothing older than that is lost.
+
+- f7c6638: Everr now accepts OpenTelemetry profiles, and Explore has a new **Profiles** page, in Everr and in the local explorer opened by `everr local start`.
+
+  - **Ingest:** send OTLP profiles to the same endpoint as your traces, logs and metrics. Profiles are kept for their own retention period.
+  - **Flame graph:** shows where your services spend CPU time, wall time or memory, for every sample type they send. Hover or pin a function to highlight its frames, and right-click a frame for more actions.
+  - **Top functions:** lists the functions with the most samples, with their callers and callees. The table follows the frame you zoom into.
+  - **Compare:** compare the range against the previous period, a custom window or an earlier `service.version`, to see which functions got slower.
+  - **Samples over time:** a histogram of samples, and drag across it to zoom. For Node.js services, event loop delay and GC time are charted alongside.
+  - **Traces:** a trace with linked samples shows a Profiles link, and a span with samples gets a Profile tab.
+  - **Filters:** Service and Environment carry over from the other Explore pages, and their menus now include services that send only profiles.
+
+### Patch Changes
+
+- c88872a: Zooming a trace or profile flamegraph with a trackpad pinch or Ctrl and the scroll wheel no longer jumps back and forth between two zoom levels. Fast scrolling now zooms smoothly in one direction, and each zoom step draws faster.
+- 19d3c4b: Fixes for the local store behind `everr local start`:
+
+  - A metric value, histogram sum, bound or exemplar that is NaN or infinite is stored as that value. An attribute that is NaN or infinite is stored as the text `NaN`, `+Inf` or `-Inf`. Before, the whole request was dropped, including its other logs, spans or metrics.
+  - A log or span whose attributes spell one key twice, such as `http.method` next to `http: {method: ...}`, is stored and keeps one of the two values. Before, it was dropped along with every other log or span sent in the same batch.
+  - When one kind of metric (gauge, sum, histogram, exponential histogram or summary) cannot be stored, a retry sends only that kind again. Before, every retry stored the other kinds again, so one data point could show up several times.
+  - Running `USE <database>` through `everr local query` no longer breaks later queries. Every query now reads `logs`, `traces` and the `metrics_*` tables by their bare names, whatever an earlier query selected. Before, a `USE` stayed in effect for every reader, the local UI included, until `everr local stop`.
+
+- 43fa4bc: `everr wrap` now exits when it gets SIGTERM, SIGHUP or an interrupt just after the wrapped command finishes. Before, such a signal could be lost, and if a background process the command started still held its output open, `everr wrap` kept running until that process ended.
+
 ## 0.12.0
 
 ### Minor Changes
