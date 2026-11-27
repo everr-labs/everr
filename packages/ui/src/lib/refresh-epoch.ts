@@ -67,6 +67,10 @@ export function refreshPage(queryClient: QueryClient): void {
 
 /**
  * Refreshes the page's data every `refresh` interval while one is picked.
+ * A hidden tab skips its refreshes and catches up with one when it is shown
+ * again, so a background tab doesn't keep querying. Any refresh, including
+ * the catch-up and the Refresh button, restarts the interval, so the next one
+ * comes a full interval later instead of right after it.
  * Returns what the Refresh button does, the same refresh once.
  */
 export function usePageRefresh(refresh: string): () => void {
@@ -75,8 +79,27 @@ export function usePageRefresh(refresh: string): () => void {
   const refreshNow = useEffectEvent(() => refreshPage(queryClient));
   useEffect(() => {
     if (!ms) return;
-    const timer = setInterval(refreshNow, ms);
-    return () => clearInterval(timer);
+    let missed = false;
+    let timer: ReturnType<typeof setInterval> | undefined;
+    const restart = () => {
+      missed = false;
+      clearInterval(timer);
+      timer = setInterval(() => {
+        if (document.hidden) missed = true;
+        else refreshNow();
+      }, ms);
+    };
+    const onVisibilityChange = () => {
+      if (!document.hidden && missed) refreshNow();
+    };
+    restart();
+    const unsubscribe = subscribe(restart);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      clearInterval(timer);
+      unsubscribe();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [ms]);
   return () => refreshPage(queryClient);
 }
