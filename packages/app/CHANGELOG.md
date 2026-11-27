@@ -1,5 +1,50 @@
 # @everr/app
 
+## 0.13.0
+
+### Minor Changes
+
+- f7c6638: Everr now accepts OpenTelemetry profiles, and Explore has a new **Profiles** page, in Everr and in the local explorer opened by `everr local start`.
+
+  - **Ingest:** send OTLP profiles to the same endpoint as your traces, logs and metrics. Profiles are kept for their own retention period.
+  - **Flame graph:** shows where your services spend CPU time, wall time or memory, for every sample type they send. Hover or pin a function to highlight its frames, and right-click a frame for more actions.
+  - **Top functions:** lists the functions with the most samples, with their callers and callees. The table follows the frame you zoom into.
+  - **Compare:** compare the range against the previous period, a custom window or an earlier `service.version`, to see which functions got slower.
+  - **Samples over time:** a histogram of samples, and drag across it to zoom. For Node.js services, event loop delay and GC time are charted alongside.
+  - **Traces:** a trace with linked samples shows a Profiles link, and a span with samples gets a Profile tab.
+  - **Filters:** Service and Environment carry over from the other Explore pages, and their menus now include services that send only profiles.
+
+- 156b94e: Self-hosted ClickHouse now gets its databases and users from the deployment, not from the app. The Compose bundle creates them with `deploy/clickhouse-init.sh` each time ClickHouse starts, from the passwords in `.env`. It never changes the password of a user that already exists. If you run your own ClickHouse, create the `otel` and `app` databases and the `collector_rw`, `app_ro`, `app_admin` and `sql_api` users before you start the app; it grants their access on startup.
+
+  The database and user names are now fixed: the app connects to `app` as `app_ro` and `app_admin`, and the SQL API uses `sql_api`. `CLICKHOUSE_DATABASE`, `CLICKHOUSE_USERNAME`, `CLICKHOUSE_ADMIN_USERNAME`, `CLICKHOUSE_SQL_API_USERNAME` and `CLICKHOUSE_COLLECTOR_PASSWORD` are no longer read, so remove them from your environment.
+
+- e02352b: TimeSeriesChart panels accept a `colors` map that pins a series to a fixed hex color by name, the same option BarChart and StatChart already have. Series it doesn't name keep their palette color. The Telemetry Usage dashboard uses it so each signal has the same color in "Usage by signal" and "Ingestion volume by signal".
+
+### Patch Changes
+
+- de18796: Dense time-series charts now draw exactly as if every point were plotted at browser zoom levels and display scales that are not a whole number, such as 125% or 150%. Before, a spike or a step could be drawn up to one screen pixel off its real position, or a little short of its full height.
+- 81118df: Going back from a trace, an error or a metric to its list now returns you to the same scroll position, with the rows you had already loaded. The row you opened gets focus back and shows a focus ring, so you can find where you left off and carry on with the keyboard. List rows also show that focus ring when you move through them with the keyboard.
+- dfa70b2: Pages respond faster. Opening a chart, a menu or a panel no longer makes the browser restyle the whole page, so expanding the chart above the profiles flamegraph no longer freezes the page for a moment.
+- c88872a: Zooming a trace or profile flamegraph with a trackpad pinch or Ctrl and the scroll wheel no longer jumps back and forth between two zoom levels. Fast scrolling now zooms smoothly in one direction, and each zoom step draws faster.
+- 1b11f46: Dashboard and runbook panels load their data faster. A panel's query result now reaches the browser in a response about 3 times smaller, and the server prepares it in about half the time for large results.
+- b075a38: Auto-refresh on dashboards and Explore pages now pauses while the browser tab is in the background, so a tab you aren't looking at no longer keeps running queries. When you come back, the page refreshes once if at least one refresh interval has passed. With auto-refresh off, the page doesn't refresh when you come back.
+- 613692f: The app's JavaScript and CSS files are now served compressed with brotli or gzip, prepared once when the app is built. Browsers download about a quarter of the bytes on a first visit, and self-hosted installations get this without configuring compression in their reverse proxy.
+- 69afc01: Profiles no longer link frames from installed dependencies, framework build output (Nitro, Next.js, SvelteKit, Vercel) or bundler virtual modules to GitHub, where those files don't exist. Frames from a module id with a query, such as a server function, now link to their source file.
+- 7de8f6d: Profiles are easier to read:
+
+  - CPU flame graphs hide `(idle)` by default. It holds the CPU from samples taken while the JavaScript thread was idle: short tasks and event loop work that finished between samples, which no stack explains. Turn on "Include idle" in the filters to see it.
+  - Hovering the runtime frames `Non JS threads activity`, `Garbage Collection` and `(idle)` explains what they measure, including why CPU time can exceed wall time.
+  - The samples histogram and the flame graph header name the sample type without its stored unit, such as "wall" instead of "wall (nanoseconds)", since every value shows its own unit, such as 12 ms. The histogram also counts `inuse_objects` in objects, not samples.
+  - Frames from the app's own server code now resolve to their TypeScript files, so their source links work.
+
+- 94fc719: Public browser keys now support wildcard origins such as `*.example.com` for one level of HTTPS subdomains. Use **Edit origins** in API key settings to update an existing key's allowlist and keep using the same key.
+- Updated dependencies [0693e57]
+- Updated dependencies [f7c6638]
+  - @everr/otel-profiler@0.13.0
+  - @everr/otel-errors@0.13.0
+  - @everr/otel-web@0.13.0
+  - @everr/tanstack-start-otel@0.13.0
+
 ## 0.12.0
 
 ### Minor Changes
