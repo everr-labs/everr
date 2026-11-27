@@ -12,6 +12,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { X } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useFilterOptionsCache } from "../../filters/data/filter-options-cache";
 import { attributeValuesOptions } from "../options";
 import type { AttributeRepositoryLike } from "../repository";
 import type { AttributeFilter, AttributeOp } from "../schemas";
@@ -43,6 +44,7 @@ function PillEditor({
   filter: AttributeFilter;
   onChange: (next: AttributeFilter) => void;
 }) {
+  const cache = useFilterOptionsCache();
   const name = attributeLabel(filter.key);
   const showValues = opTakesValues(filter.op);
 
@@ -66,14 +68,9 @@ function PillEditor({
         search: debouncedSearch || undefined,
       },
       { domain },
+      cache,
     ),
     enabled: showValues,
-    // Keeps the last results while typing, so the list does not collapse and
-    // regrow on every keystroke. Only for the same attribute.
-    placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[3] === filter.source && previousQuery.queryKey[4] === filter.key
-        ? previous
-        : undefined,
   });
 
   const toggleValue = (value: string) => {

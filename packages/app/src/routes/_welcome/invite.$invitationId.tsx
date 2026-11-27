@@ -10,6 +10,7 @@ import {
   resolveInvitationLoader,
 } from "#app/data/invite.ts";
 import { authClient } from "#app/lib/auth-client.ts";
+import { clearFilterOptionsCache } from "#app/lib/filter-options-cache.ts";
 import { applyAccessChange } from "#app/lib/route-access-cache.ts";
 
 export const Route = createFileRoute("/_welcome/invite/$invitationId")({
@@ -331,6 +332,7 @@ function WrongRecipientContent({
     setIsSigningOut(true);
     try {
       await authClient.signOut();
+      clearFilterOptionsCache();
       queryClient.clear();
       await navigate({
         to: "/auth/sign-in",

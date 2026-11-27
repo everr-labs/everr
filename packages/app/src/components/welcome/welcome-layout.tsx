@@ -3,6 +3,7 @@ import { EverrLogo } from "@everr/ui/components/everr-logo";
 import { LogOut } from "lucide-react";
 import type { ReactNode } from "react";
 import { authClient } from "#app/lib/auth-client.ts";
+import { clearFilterOptionsCache } from "#app/lib/filter-options-cache.ts";
 import { AsciiLogo } from "./ascii-logo";
 
 export interface WelcomeLayoutProps {
@@ -25,6 +26,7 @@ export function WelcomeLayout({ signedIn, actions, children }: WelcomeLayoutProp
               void authClient.signOut({
                 fetchOptions: {
                   onSuccess: () => {
+                    clearFilterOptionsCache();
                     window.location.href = "/auth/sign-in";
                   },
                 },
