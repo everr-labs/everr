@@ -15,6 +15,7 @@ const runtimeMocks = vi.hoisted(() => ({
   previewsCronItems: [{ task: "previews/retention" }],
   previewsTaskList: { "previews/retention": vi.fn() },
   pool: {},
+  workerPools: [] as object[],
   runOptions: [] as MockRunOptions[],
   serverLoggerError: vi.fn(),
   serverLoggerInfo: vi.fn(),
@@ -22,7 +23,19 @@ const runtimeMocks = vi.hoisted(() => ({
 vi.mock("@composition/runtime", () => ({
   runtime: { registerWorkers: vi.fn(async () => []) },
 }));
-vi.mock("#app/db/client.ts", () => ({ db: {}, pool: runtimeMocks.pool }));
+vi.mock("#app/db/client.ts", () => ({
+  databasePoolConfig: {},
+  db: {},
+  pool: runtimeMocks.pool,
+}));
+vi.mock("pg", () => ({
+  Pool: class {
+    end = vi.fn(async () => {});
+    constructor() {
+      runtimeMocks.workerPools.push(this);
+    }
+  },
+}));
 vi.mock("#app/lib/clickhouse-writer.ts", () => ({ insertRows: vi.fn() }));
 vi.mock("graphile-worker", () => ({
   parseCronItems: (items: unknown[]) => items,
@@ -71,6 +84,7 @@ async function loadRuntime() {
   vi.resetModules();
   delete (globalThis as { __everrHotSingletons?: unknown }).__everrHotSingletons;
   runtimeMocks.runOptions.length = 0;
+  runtimeMocks.workerPools.length = 0;
   runtimeMocks.serverLoggerError.mockClear();
   runtimeMocks.serverLoggerInfo.mockClear();
   const runtime = await import("./runtime");
@@ -94,13 +108,15 @@ it.each([true, false])(
     expect(general).toMatchObject({
       concurrency: 2,
       noHandleSignals: true,
-      pgPool: runtimeMocks.pool,
       parsedCronItems: expect.arrayContaining([
         expect.objectContaining({ task: "alerts/scan" }),
         expect.objectContaining({ task: "alerts/retention" }),
         ...runtimeMocks.previewsCronItems,
       ]),
     });
+    // Graphile's LISTEN client must never be a connection opened by app code.
+    expect(runtimeMocks.workerPools).toHaveLength(1);
+    expect(general).toHaveProperty("pgPool", runtimeMocks.workerPools[0]);
     expect(Object.keys(general.taskList).sort()).toEqual([
       "alerts/evaluate",
       "alerts/flush-group",

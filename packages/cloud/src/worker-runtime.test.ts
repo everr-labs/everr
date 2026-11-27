@@ -6,7 +6,7 @@ type MockRunOptions = {
   concurrency: number;
   events: EventEmitter;
   noHandleSignals: boolean;
-  pgPool: unknown;
+  pgPool: { end: ReturnType<typeof vi.fn> };
   taskList: Record<string, unknown>;
 };
 
@@ -14,11 +14,8 @@ const runtimeMocks = vi.hoisted(() => {
   const runOptions: MockRunOptions[] = [];
   return {
     pool: { query: vi.fn(), options: { host: "database", max: 10 } },
-    organizationPool: {
-      query: vi.fn().mockResolvedValue({ rows: [] }),
-      end: vi.fn().mockResolvedValue(undefined),
-    },
-    poolOptions: [] as unknown[],
+    poolQuery: vi.fn().mockResolvedValue({ rows: [] }),
+    pools: [] as { end: ReturnType<typeof vi.fn>; options: unknown }[],
     runners: [] as { stop: ReturnType<typeof vi.fn> }[],
     run: vi.fn(async (options: MockRunOptions) => {
       runOptions.push(options);
@@ -45,10 +42,10 @@ vi.mock("@everr/app/lib/clickhouse-writer", () => ({ insertRows: vi.fn() }));
 
 vi.mock("pg", () => ({
   Pool: class {
-    query = runtimeMocks.organizationPool.query;
-    end = runtimeMocks.organizationPool.end;
-    constructor(options: unknown) {
-      runtimeMocks.poolOptions.push(options);
+    query = runtimeMocks.poolQuery;
+    end = vi.fn().mockResolvedValue(undefined);
+    constructor(public options: unknown) {
+      runtimeMocks.pools.push(this);
     }
   },
 }));
@@ -101,9 +98,8 @@ async function loadRuntime(apiKey?: string) {
   runtimeMocks.run.mockClear();
   runtimeMocks.runOptions.length = 0;
   runtimeMocks.runners.length = 0;
-  runtimeMocks.poolOptions.length = 0;
-  runtimeMocks.organizationPool.query.mockClear();
-  runtimeMocks.organizationPool.end.mockClear();
+  runtimeMocks.pools.length = 0;
+  runtimeMocks.poolQuery.mockClear();
   runtimeMocks.serverLoggerError.mockClear();
   runtimeMocks.serverLoggerInfo.mockClear();
   const runtime = await import("@everr/app/server/worker/runtime");
@@ -114,6 +110,12 @@ async function loadRuntime(apiKey?: string) {
       return activeRuntime;
     },
   };
+}
+
+function runnerWithTask(identifier: string) {
+  const runner = runtimeMocks.runOptions.find((options) => identifier in options.taskList);
+  if (!runner) throw new Error(`Missing worker runner for ${identifier}`);
+  return runner;
 }
 
 describe("worker runtime", () => {
@@ -155,9 +157,9 @@ describe("worker runtime", () => {
       "crm/sync-user",
     ]);
     expect(integration).not.toHaveProperty("parsedCronItems");
-    expect(runtimeMocks.poolOptions).toHaveLength(2);
+    expect(runtimeMocks.pools).toHaveLength(3);
     await activeRuntime!.stop();
-    expect(runtimeMocks.organizationPool.end).toHaveBeenCalledTimes(2);
+    for (const pool of runtimeMocks.pools) expect(pool.end).toHaveBeenCalledOnce();
   });
 
   // Blank-key normalization is covered in app/env.test.ts.
@@ -184,7 +186,9 @@ describe("worker runtime", () => {
     });
     try {
       await runtime.startWorkerRuntime();
-      expect(runtimeMocks.organizationPool.end).toHaveBeenCalledOnce();
+      const runningPools = runtimeMocks.runOptions.map((options) => options.pgPool);
+      for (const pool of runtimeMocks.pools)
+        expect(pool.end).toHaveBeenCalledTimes(runningPools.includes(pool) ? 0 : 1);
       expect(runtimeMocks.runners).toHaveLength(2);
       for (const runner of runtimeMocks.runners) expect(runner.stop).not.toHaveBeenCalled();
       expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
@@ -204,20 +208,16 @@ describe("worker runtime", () => {
     await runtime.startWorkerRuntime();
 
     expect(runtimeMocks.run).toHaveBeenCalledTimes(2);
-    const general = runtimeMocks.runOptions.find((options) => options.pgPool === runtimeMocks.pool);
-    const organizations = runtimeMocks.runOptions.find(
-      (options) => options.pgPool !== runtimeMocks.pool,
-    );
-    if (!general || !organizations) throw new Error("Missing worker runner");
-    expect(general).toMatchObject({
-      concurrency: 2,
-      noHandleSignals: true,
-      pgPool: runtimeMocks.pool,
-    });
+    const general = runnerWithTask("alerts/evaluate");
+    const organizations = runnerWithTask("clickhouse/provision-organization");
+    expect(general).toMatchObject({ concurrency: 2, noHandleSignals: true });
+    // Graphile's LISTEN client must never be a connection opened by app code.
+    expect(general.pgPool).not.toBe(runtimeMocks.pool);
+    expect(organizations.pgPool).not.toBe(runtimeMocks.pool);
+    expect(organizations.pgPool).not.toBe(general.pgPool);
     expect(organizations).toMatchObject({
       concurrency: 2,
       noHandleSignals: true,
-      pgPool: runtimeMocks.organizationPool,
       parsedCronItems: [
         expect.objectContaining({
           task: "clickhouse/scan-pending-organizations",
@@ -232,15 +232,14 @@ describe("worker runtime", () => {
     expect(Object.keys(general.taskList)).toContain("alerts/evaluate");
     for (const identifier of Object.keys(organizations.taskList))
       expect(general.taskList).not.toHaveProperty(identifier);
-    expect(runtimeMocks.poolOptions).toEqual([
-      {
-        host: "database",
-        password: "test-password",
-        connectionTimeoutMillis: 10_000,
-        max: 4,
-      },
-    ]);
-    expect(runtimeMocks.organizationPool.query).toHaveBeenCalledOnce();
+    const poolOptions = {
+      host: "database",
+      password: "test-password",
+      connectionTimeoutMillis: 10_000,
+      max: 4,
+    };
+    expect(runtimeMocks.pools.map((pool) => pool.options)).toEqual([poolOptions, poolOptions]);
+    expect(runtimeMocks.poolQuery).toHaveBeenCalledOnce();
   });
 
   it("drains both runners and closes the reserved pool even if cleanup fails", async () => {
@@ -250,7 +249,7 @@ describe("worker runtime", () => {
     runtimeMocks.runners[0].stop.mockRejectedValueOnce(error);
     await expect(handle.stop()).rejects.toMatchObject({ errors: [error] });
     for (const runner of runtimeMocks.runners) expect(runner.stop).toHaveBeenCalledOnce();
-    expect(runtimeMocks.organizationPool.end).toHaveBeenCalledOnce();
+    for (const pool of runtimeMocks.pools) expect(pool.end).toHaveBeenCalledOnce();
     activeRuntime = undefined;
   });
 
@@ -259,7 +258,7 @@ describe("worker runtime", () => {
     const start = runtimeMocks.run.getMockImplementation();
     if (!start) throw new Error("Missing worker implementation");
     runtimeMocks.run.mockImplementation(async (options) => {
-      if (options.pgPool === runtimeMocks.pool) throw new Error("Shared worker unavailable");
+      if ("alerts/evaluate" in options.taskList) throw new Error("Shared worker unavailable");
       return start(options);
     });
     await runtime.startWorkerRuntime();
@@ -271,15 +270,13 @@ describe("worker runtime", () => {
       }),
     );
     expect(runtimeMocks.runners[0].stop).not.toHaveBeenCalled();
-    expect(runtimeMocks.organizationPool.end).not.toHaveBeenCalled();
+    expect(runnerWithTask("clickhouse/provision-organization").pgPool.end).not.toHaveBeenCalled();
     runtimeMocks.run.mockImplementation(start);
   });
 
   it("keeps both workers alive if recovery of old retry schedules fails", async () => {
     const runtime = await loadRuntime();
-    runtimeMocks.organizationPool.query.mockRejectedValueOnce(
-      new Error("Could not recover retries"),
-    );
+    runtimeMocks.poolQuery.mockRejectedValueOnce(new Error("Could not recover retries"));
     await runtime.startWorkerRuntime();
     await Promise.resolve();
     expect(runtimeMocks.serverLoggerError).toHaveBeenCalledWith(
@@ -289,6 +286,6 @@ describe("worker runtime", () => {
       }),
     );
     for (const runner of runtimeMocks.runners) expect(runner.stop).not.toHaveBeenCalled();
-    expect(runtimeMocks.organizationPool.end).not.toHaveBeenCalled();
+    for (const pool of runtimeMocks.pools) expect(pool.end).not.toHaveBeenCalled();
   });
 });
