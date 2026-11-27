@@ -1,6 +1,6 @@
 import { RetryError } from "@everr/ui/components/retry-error";
 import { raggedWidth, Skeleton } from "@everr/ui/components/skeleton";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { cn } from "@everr/ui/lib/utils";
 import type { ReactNode } from "react";
 import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
@@ -102,7 +102,7 @@ export function MetricCatalog({
                     </span>
                   </td>
                   <td className="text-muted-foreground hidden px-4 py-1.5 text-right text-xs whitespace-nowrap lg:table-cell">
-                    {formatRelativeTime(row.lastSeen)}
+                    <RelativeTime timestamp={row.lastSeen} />
                   </td>
                 </tr>
               );

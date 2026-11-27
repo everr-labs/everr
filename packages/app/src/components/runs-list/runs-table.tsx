@@ -3,7 +3,7 @@ import { Badge } from "@everr/ui/components/badge";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Link } from "@tanstack/react-router";
 import { useMemo } from "react";
 import type { RunListItem } from "#app/data/runs-list/schemas.ts";
@@ -74,7 +74,7 @@ export function RunsTable({ data, showCost = false }: RunsTableProps) {
         header: "When",
         cell: (run) => (
           <span className="whitespace-nowrap text-xs text-muted-foreground">
-            {formatRelativeTime(run.timestamp)}
+            <RelativeTime timestamp={run.timestamp} />
           </span>
         ),
       },

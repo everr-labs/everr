@@ -1,6 +1,6 @@
 import { ConclusionIcon, SenderCell } from "@everr/telemetry-explorer/runs";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Link } from "@tanstack/react-router";
 import { ChevronRight } from "lucide-react";
 import type { RepoRecentRun } from "#app/data/repo-detail/schemas.ts";
@@ -44,7 +44,7 @@ export function RepoRecentRuns({ data }: RepoRecentRunsProps) {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-xs">
-              {formatRelativeTime(run.timestamp)}
+              <RelativeTime timestamp={run.timestamp} />
             </span>
             <ChevronRight className="text-muted-foreground size-4" />
           </div>

@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@everr/ui/components/po
 import { Toggletip, ToggletipContent, ToggletipTrigger } from "@everr/ui/components/toggletip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
+import { useNow } from "@everr/ui/hooks/use-now";
 import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { progressToast } from "#app/lib/progress-toast.ts";
 import { CreateApiKeyDialog } from "#app/components/api-keys/create-api-key-dialog.tsx";
@@ -51,11 +52,11 @@ const RELATIVE_UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
   ["minute", 60],
 ];
 
-function relativeFromNow(value?: string | Date | null): string | null {
+function relativeFromNow(value: string | Date | null | undefined, now: number): string | null {
   if (!value) return null;
   const then = new Date(value).getTime();
   if (Number.isNaN(then)) return null;
-  const seconds = Math.round((then - Date.now()) / 1000);
+  const seconds = Math.round((then - now) / 1000);
   const abs = Math.abs(seconds);
   for (const [unit, secs] of RELATIVE_UNITS) {
     if (abs >= secs) return RELATIVE.format(Math.round(seconds / secs), unit);
@@ -197,8 +198,9 @@ function AllowedOrigins({ row }: { row: ApiKey }) {
 }
 
 function LastUsed({ row }: { row: ApiKey }) {
+  const now = useNow();
   const value = row.lastRequest;
-  const relative = relativeFromNow(value);
+  const relative = relativeFromNow(value, now);
   if (!relative || !value) {
     return <span className="text-muted-foreground whitespace-nowrap">Never used</span>;
   }
@@ -213,9 +215,10 @@ function LastUsed({ row }: { row: ApiKey }) {
 }
 
 function Expiry({ row }: { row: ApiKey }) {
+  const now = useNow();
   const value = row.expiresAt;
   if (!value) return <span className="text-muted-foreground">Never</span>;
-  const expired = new Date(value).getTime() < Date.now();
+  const expired = new Date(value).getTime() < now;
   if (expired) {
     return (
       <Tooltip>

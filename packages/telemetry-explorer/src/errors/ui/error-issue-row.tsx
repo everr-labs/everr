@@ -1,5 +1,6 @@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@everr/ui/components/tooltip";
-import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import { focusRingRow, RowFocusRing } from "../../shell/row-focus-ring";
 import type { ReactNode } from "react";
@@ -96,7 +97,7 @@ export function ErrorIssueRow({
             <span className="text-muted-foreground relative z-10 hidden w-20 shrink-0 text-right text-xs tabular-nums lg:inline" />
           }
         >
-          {formatRelativeTime(issue.lastSeen)}
+          <RelativeTime timestamp={issue.lastSeen} />
         </TooltipTrigger>
         <TooltipContent side="left">
           <span className="flex flex-col gap-0.5 tabular-nums">

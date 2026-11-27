@@ -11,7 +11,7 @@ import {
   CommandShortcut,
 } from "@everr/ui/components/command";
 import { Kbd } from "@everr/ui/components/kbd";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
@@ -111,7 +111,9 @@ export function CommandBar() {
                     <span>
                       #{run.runId} · {run.workflowName}
                     </span>
-                    <CommandShortcut>{formatRelativeTime(run.timestamp)}</CommandShortcut>
+                    <CommandShortcut>
+                      <RelativeTime timestamp={run.timestamp} />
+                    </CommandShortcut>
                   </CommandItem>
                 ))}
               </CommandGroup>

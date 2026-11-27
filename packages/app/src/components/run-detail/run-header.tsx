@@ -1,6 +1,6 @@
 import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { buttonVariants } from "@everr/ui/components/button";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink } from "lucide-react";
@@ -84,7 +84,7 @@ export function RunHeader({
         )}
       </div>
       <p className="text-muted-foreground ml-14 text-xs">
-        {repo} • {branch} • {formatRelativeTime(timestamp)}
+        {repo} • {branch} • <RelativeTime timestamp={timestamp} />
       </p>
     </div>
   );

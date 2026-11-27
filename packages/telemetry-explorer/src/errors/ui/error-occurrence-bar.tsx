@@ -1,5 +1,6 @@
 import { Button, buttonVariants } from "@everr/ui/components/button";
-import { formatRelativeTime, parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ErrorOccurrence } from "../data/types";
@@ -81,7 +82,11 @@ export function ErrorOccurrenceBar({
         <span className="text-foreground">
           {date ? date.toLocaleString(undefined, TIMESTAMP_FORMAT) : selected.timestamp}
         </span>
-        {date ? `, ${formatRelativeTime(selected.timestamp)}` : null}
+        {date ? (
+          <>
+            , <RelativeTime timestamp={selected.timestamp} />
+          </>
+        ) : null}
       </span>
       <ErrorService serviceName={selected.serviceName} className="max-w-52" />
     </div>

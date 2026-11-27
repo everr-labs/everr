@@ -6,7 +6,7 @@ import { Empty, EmptyDescription } from "@everr/ui/components/empty";
 import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
@@ -137,7 +137,9 @@ function RunLanes({ run }: { run: WorkflowRunGantt }) {
             <span className="ml-1 text-muted-foreground">(#{run.runAttempt})</span>
           )}
         </Link>
-        <span className="text-muted-foreground">{formatRelativeTime(run.timestamp)}</span>
+        <span className="text-muted-foreground">
+          <RelativeTime timestamp={run.timestamp} />
+        </span>
       </div>
 
       <ScrollArea className="max-h-[320px]" viewportClassName="space-y-1">

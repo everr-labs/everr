@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import { devtools } from "@tanstack/devtools-vite";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
-import viteReact from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { nitro } from "nitro/vite";
 import { defineConfig, loadEnv } from "vite-plus";
 import svgr from "vite-plugin-svgr";
@@ -137,6 +138,7 @@ export function createAppConfig(
           },
         }),
         viteReact(),
+        babel({ presets: [reactCompilerPreset()] }),
         // dimensions: false drops the svg's fixed width/height, so the icon
         // scales from its viewBox and CSS classes own the size everywhere.
         svgr({ svgrOptions: { dimensions: false } }),

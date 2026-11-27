@@ -5,7 +5,8 @@ import {
   type AppComposition,
 } from "./vite.app.ts";
 import { parse } from "dotenv";
-import viteReact from "@vitejs/plugin-react";
+import babel from "@rolldown/plugin-babel";
+import viteReact, { reactCompilerPreset } from "@vitejs/plugin-react";
 import { defineConfig } from "vite-plus";
 import svgr from "vite-plugin-svgr";
 import { readFileSync } from "node:fs";
@@ -30,7 +31,11 @@ export function createAppTestConfig(
       ],
       alias: [...appAliases(composition)],
     },
-    plugins: [viteReact(), svgr({ svgrOptions: { dimensions: false } })],
+    plugins: [
+      viteReact(),
+      babel({ presets: [reactCompilerPreset()] }),
+      svgr({ svgrOptions: { dimensions: false } }),
+    ],
     test: {
       clearMocks: false,
       isolate: false,

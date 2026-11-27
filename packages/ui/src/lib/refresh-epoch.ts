@@ -31,11 +31,14 @@ export function useRefreshInstant(key: string): { at: number; epoch: number } {
   const current = useRefreshEpoch();
   const full = `${key}\u0000${current}`;
   const [instant, setInstant] = useState(() => ({ key: full, at: Date.now() }));
-  if (instant.key === full) return { at: instant.at, epoch: current };
-  // Storing what changed since the previous render, as React recommends over an effect.
-  const next = { key: full, at: Date.now() };
-  setInstant(next);
-  return { at: next.at, epoch: current };
+  if (instant.key !== full) {
+    // Storing what changed since the previous render, as React recommends over
+    // an effect. The clock is read in the updater, which runs on every change:
+    // read in render, it would be one value the compiler is free to keep.
+    // React renders again with the new instant before anything commits.
+    setInstant(() => ({ key: full, at: Date.now() }));
+  }
+  return { at: instant.at, epoch: current };
 }
 
 const isRefreshKeyed = (query: Query) => query.meta?.refreshKeyed === true;

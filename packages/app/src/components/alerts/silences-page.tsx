@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { GroupBand } from "@everr/ui/components/group-band";
+import { useNow } from "@everr/ui/hooks/use-now";
 import { cn } from "@everr/ui/lib/utils";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { Plus } from "lucide-react";
@@ -267,9 +268,9 @@ export function SilencesPage({
   onCancel: (target: SilenceCancelTarget, onFailed?: () => void) => void;
   onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
-  // One reading of the clock per render, so two rows cannot disagree about
-  // what "in 4m" is measured from.
-  const now = Date.now();
+  // One reading of the clock for every row, so two rows cannot disagree about
+  // what "in 4m" is measured from, and it moves on as the minutes pass.
+  const now = useNow();
   // Which row should take focus when it next mounts. Owned here because this
   // is the component that knows a cancel moves a row across the divider, and
   // the only one that can tell it has: the route has no reason to know the

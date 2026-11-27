@@ -2,7 +2,7 @@ import { ConclusionIcon } from "@everr/telemetry-explorer/runs";
 import { Badge } from "@everr/ui/components/badge";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
-import { formatRelativeTime } from "@everr/ui/lib/timestamp";
+import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Link } from "@tanstack/react-router";
 import type { ActiveBranch } from "#app/data/repo-detail/schemas.ts";
 import { getSuccessRateVariant } from "#app/lib/formatting.ts";
@@ -46,7 +46,7 @@ const columns: Column<ActiveBranch>[] = [
     header: "Last Activity",
     cell: (branch) => (
       <span className="text-xs text-muted-foreground">
-        {formatRelativeTime(branch.latestTimestamp)}
+        <RelativeTime timestamp={branch.latestTimestamp} />
       </span>
     ),
   },

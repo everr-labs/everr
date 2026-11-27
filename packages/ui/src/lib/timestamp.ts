@@ -33,12 +33,13 @@ export function formatRowTimestamp(timestamp: string, withDay: boolean): string 
   return `${parsed.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
 }
 
-export function formatRelativeTime(timestamp: string): string {
+/** How long before `now` (ms) the timestamp was, as "5m ago". Components
+ *  show it with `RelativeTime`, which keeps `now` moving. */
+export function formatRelativeTime(timestamp: string, now: number): string {
   const date = parseTimestampAsUTC(timestamp);
   if (!date) return "—";
 
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
+  const diffMs = now - date.getTime();
   if (diffMs < 0) return "just now";
 
   const diffMins = Math.floor(diffMs / 60000);
